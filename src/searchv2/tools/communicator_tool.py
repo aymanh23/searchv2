@@ -44,7 +44,7 @@ class CommunicatorTool(BaseTool):
                     user_input, src='tr', dest='en').text
             except Exception:
                 processed_input = user_input
-        # No keyword extraction here; let the LLM agent handle it
+        
         if context is None:
             context = {}
         context['last_input'] = user_input
@@ -62,9 +62,3 @@ class CommunicatorTool(BaseTool):
             'follow_up_answers': answers
         }
 
-    def extract_symptoms(self, text: str) -> List[str]:
-        # Placeholder: extract words like 'pain', 'fever', etc. Replace with LLM/spaCy later.
-        keywords = ['pain', 'fever', 'cough', 'headache',
-                    'nausea', 'vomiting', 'dizziness', 'fatigue', 'rash']
-        found = [word for word in keywords if word in text.lower()]
-        return found
