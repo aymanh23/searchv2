@@ -1,0 +1,36 @@
+communicate_task:
+  description: >
+    Use the CommunicatorTool to extract symptoms from the user's input and present the extracted symptoms and any follow-up questions/answers. If the input is ambiguous, use the tool to ask for clarification. Return the tool's output as your final answer.
+  expected_output: >
+    A list of extracted symptoms and any follow-up questions/answers.
+  agent: communicator
+
+search_task:
+  description: >
+    Given a symptom or set of symptoms, search the web (using WebsiteSearchTool) for related medical conditions, red flags, and recommended follow-up questions. Return the results in a structured format with "related_conditions" and "suggested_questions".
+  expected_output: >
+    A dictionary with two keys: "related_conditions" (a list of possible conditions) and "suggested_questions" (a list of follow-up questions to ask the user).
+  agent: search_agent
+  inputs:
+    - symptoms
+  outputs:
+    - related_conditions
+    - suggested_questions
+  steps:
+    - name: Search for medical information
+      input: "{{ symptoms }}"
+      output: search_results
+    - name: Parse search results
+      action: |
+        # Parse the search_results to extract:
+        # - related_conditions: a list of possible conditions
+        # - suggested_questions: a list of follow-up questions to ask the user
+        # Return as a dictionary:
+        {
+          "related_conditions": ...,
+          "suggested_questions": ...
+        }
+      input: search_results
+      output:
+        - related_conditions
+        - suggested_questions
