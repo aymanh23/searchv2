@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import sys
 import warnings
-
 from datetime import datetime
-
 from searchv2.crew import MedicalSearch
 from crewai_tools import WebsiteSearchTool
 from dotenv import load_dotenv
@@ -22,18 +20,19 @@ def run():
     Run the crew in a user-in-the-loop interactive mode: the agent reasons and asks follow-up questions, but only the user answers them.
     """
     crew = MedicalSearch().crew()
-    context = {}
-    print("Welcome to the Medical Symptom Communicator!")
-    user_input = input("Please describe your symptoms: ")
+    # greeting = (
+    #     "Hello! I'm your MedicalAI Assistant.\n"
+    #     "I'm here to help collect and organize details about your symptoms so your doctor can better understand what you're experiencing.\n"
+    #     "I'll ask you a few questions — just answer in your own words, and I'll take care of the rest.\n"
+    #     "To begin, could you please tell me what symptoms you're experiencing today?"
+    # )
+    # user_input = input(f"{greeting}\n> ")
     while True:
-        # Pass the user input as the topic for the agent
-        inputs = {'topic': user_input}
         try:
-            result = crew.kickoff(inputs=inputs)
+            result = crew.kickoff()
         except Exception as e:
             print(f"An error occurred while running the crew: {e}")
             break
-        # Try to extract follow-up question(s) from the result
         if isinstance(result, dict):
             message = result.get('message', '')
             follow_ups = result.get('follow_up_questions', [])
@@ -42,13 +41,10 @@ def run():
                 for q in follow_ups:
                     user_input = input(q + ' ')
                 continue
-            # If no follow-ups, print final answer and break
             final = result.get('final_answer')
             if final:
                 print(f"\nFinal Answer: {final}")
             break
         else:
-            # If result is a string, print and break
             print(result)
             break
-

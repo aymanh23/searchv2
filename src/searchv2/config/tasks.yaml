@@ -1,6 +1,6 @@
 communicate_task:
   description: >
-    Use the CommunicatorTool to extract symptoms from the user's input and present the extracted symptoms and any follow-up questions/answers. If the input is ambiguous, use the tool to ask for clarification. Return the tool's output as your final answer.
+    Extract symptoms from the user's input and present the extracted symptoms and any follow-up questions/answers. If the input is ambiguous, ask for clarification. Return the output as your final answer.
   expected_output: >
     A list of extracted symptoms and any follow-up questions/answers.
   agent: communicator
