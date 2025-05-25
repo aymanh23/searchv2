@@ -29,28 +29,27 @@ class MedicalSearch():
     def WebsiteSearchTool(self):
         from crewai_tools import WebsiteSearchTool
         return WebsiteSearchTool(
-        config=dict(
-            llm=dict(
-                provider="google",  # or google, openai, anthropic, llama2, ...
-                config=dict(
-                    model="gemini/gemini-2.0-flash-001",
-                    # temperature=0.5,
-                    # top_p=1,
-                    # stream=true,
+            config=dict(
+                llm=dict(
+                    # or google, openai, anthropic, llama2, ...
+                    provider="google",
+                    config=dict(
+                        model="gemini/gemini-2.5-flash-preview-05-20",
+                        # temperature=0.5,
+                        # top_p=1,
+                        # stream=true,
+                    ),
                 ),
-            ),
-            embedder=dict(
-                provider="google",  # or openai, ollama, ...
-                config=dict(
-                    model="models/embedding-001",
-                    task_type="retrieval_document",
-                    # title="Embeddings",
+                embedder=dict(
+                    provider="google",  # or openai, ollama, ...
+                    config=dict(
+                        model="models/embedding-001",
+                        task_type="retrieval_document",
+                        # title="Embeddings",
+                    ),
                 ),
-            ),
+            )
         )
-    )
-    
-
 
     @agent
     def communicator(self) -> Agent:
@@ -92,5 +91,5 @@ class MedicalSearch():
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            verbose=True,
+            verbose=True
         )
