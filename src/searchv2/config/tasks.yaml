@@ -1,43 +1,87 @@
-communicate_task:
+# This file is kept for potential future task configurations
+# Currently, the main task is defined directly in crew.py as symptom_interview_task
+
+# Future task configurations can be added here if needed
+
+# Main task configuration - actual implementation is in crew.py
+symptom_interview_task:
   description: >
-    Extract symptoms from the user's input and present the extracted symptoms and any follow-up questions/answers. If the input is ambiguous, ask for clarification. Return the output as your final answer.
+    Conduct a comprehensive symptom interview.
+    
+    PROCESS:
+    1. Welcome the patient and begin the symptom interview
+    2. Use delegation to search_agent when you need follow-up questions about specific symptoms
+    3. Continue gathering detailed symptom information until you have comprehensive data
+    4. Once interview is complete, pass information to symptom_validator for completeness check
+    
+    INTERVIEW COMPLETION CRITERIA:
+    Stop the interview when you have gathered sufficient information about:
+    - Onset, duration, severity, location, character
+    - Aggravating and relieving factors  
+    - Associated symptoms
+    - Previous episodes and treatments attempted
   expected_output: >
-    When using a tool, output exactly:
-    Action: Human Input
-    Action Input: {"question": "your question here"}
-
-    When you have all the information, output exactly:
-    Thought: I now know the final answer
-    Final Answer: your answer here
-
+    Comprehensive symptom information including all essential medical details 
+    (onset, duration, severity, location, character, aggravating/relieving factors, 
+    associated symptoms, previous episodes, treatment attempts)
   agent: communicator
+  human_input: true
 
 search_task:
   description: >
-    Given a symptom or set of symptoms, search the web (using WebsiteSearchTool) for related medical conditions, red flags, and recommended follow-up questions. Return the results in a structured format with "related_conditions" and "suggested_questions".
+    Provide medical research and suggested follow-up questions for symptom assessment.
+    
+    When given a symptom or medical concern:
+    1. Research current medical information about the symptom
+    2. Provide 3-5 specific follow-up questions that would help characterize the symptom
+    3. Identify any red flag symptoms to watch for
+    4. Return medically relevant follow-up questions for the communicator to ask
   expected_output: >
-    A dictionary with two keys: "related_conditions" (a list of possible conditions) and "suggested_questions" (a list of follow-up questions to ask the user).
+    Medical context and 3-5 specific follow-up questions that help determine 
+    onset, duration, severity, character, location, aggravating/relieving factors, 
+    and associated symptoms
   agent: search_agent
-  inputs:
-    - symptoms
-  outputs:
-    - related_conditions
-    - suggested_questions
-  steps:
-    - name: Search for medical information
-      input: "{{ symptoms }}"
-      output: search_results
-    - name: Parse search results
-      action: |
-        # Parse the search_results to extract:
-        # - related_conditions: a list of possible conditions
-        # - suggested_questions: a list of follow-up questions to ask the user
-        # Return as a dictionary:
-        {
-          "related_conditions": ...,
-          "suggested_questions": ...
-        }
-      input: search_results
-      output:
-        - related_conditions
-        - suggested_questions
+
+validation_task:
+  description: >
+    Validate the completeness of symptom information collected during the interview.
+    
+    VALIDATION CHECKLIST:
+    - Onset (when did symptoms start?)
+    - Duration (how long have symptoms lasted?)
+    - Severity (impact on daily activities, pain scale if applicable)
+    - Location (anatomical location of symptoms)
+    - Character (description of what symptoms feel like)
+    - Aggravating factors (what makes symptoms worse?)
+    - Relieving factors (what makes symptoms better?)
+    - Associated symptoms (other symptoms that occur together)
+    - Previous episodes (has this happened before?)
+    - Treatment attempts (what has been tried?)
+    
+    If any critical information is missing, return specific questions that need to be asked.
+    If information is complete, approve for report generation.
+  expected_output: >
+    Either: "COMPLETE - Ready for report generation" with summary of collected information,
+    OR: "INCOMPLETE" with list of specific questions that still need to be asked
+  agent: symptom_validator
+  context: [symptom_interview_task]
+
+report_generation_task:
+  description: >
+    Generate a comprehensive medical report in PDF format based on validated symptom information.
+    
+    REPORT STRUCTURE:
+    1. Patient Information (if provided)
+    2. Chief Complaint (main symptoms)
+    3. History of Present Illness (detailed symptom timeline)
+    4. Review of Systems (organized symptom review)
+    5. Clinical Summary (key findings and patterns)
+    6. Recommendations for Further Evaluation
+    7. Red Flags/Urgent Symptoms (if any identified)
+    
+    Save the report in the 'reports' folder with timestamp and brief description in filename.
+  expected_output: >
+    Professional PDF medical report saved to reports folder with confirmation message 
+    including filename and location of the generated report
+  agent: report_generator
+  context: [validation_task]

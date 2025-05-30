@@ -11,8 +11,8 @@ class HumanInputTool(BaseTool):
             HumanInputTool._first_call = False
             greeting = (
                 "Hello! I'm your MedicalAI Assistant.\n"
-                "I'm here to help collect and organize details about your symptoms so your doctor can better understand what you're experiencing.\n\n"
-                "I'll ask you a few questions — just answer in your own words, and I'll take care of the rest.\n\n"
+                "I'm here to help collect and organize details about your symptoms so your doctor can better understand what you're experiencing.\n"
+                "I'll ask you a few questions — just answer in your own words, and I'll take care of the rest.\n"
                 "To begin, could you please tell me what symptoms you're experiencing today?"
             )
             return input(f"{greeting}\n> ")
