@@ -4,6 +4,8 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 from typing import List
 from searchv2.tools.human_input_tool import HumanInputTool
 from searchv2.tools.report_generation_tool import ReportGenerationTool
+from searchv2.tools.serper_tool import SerperSearchTool
+from searchv2.tools.trusted_medical_search_tool import TrustedMedicalSearchTool
 from crewai_tools import WebsiteSearchTool
 import os
 # If you want to run a snippet of code before or after the crew starts,
@@ -39,6 +41,14 @@ class MedicalSearch():
             )
         )
 
+    @tool
+    def SerperSearchTool(self):
+        return SerperSearchTool()
+
+    @tool
+    def TrustedMedicalSearchTool(self):
+        return TrustedMedicalSearchTool()
+
     @tool  
     def HumanInputTool(self):
         return HumanInputTool()
@@ -61,7 +71,7 @@ class MedicalSearch():
     def search_agent(self) -> Agent:
         return Agent(
             config=self.agents_config['search_agent'],
-            tools=[self.WebsiteSearchTool()],
+            tools=[self.TrustedMedicalSearchTool(), self.SerperSearchTool(), self.WebsiteSearchTool()],
             verbose=True,
             allow_delegation=False,  # Focused specialist
             llm="gemini/gemini-2.0-flash",

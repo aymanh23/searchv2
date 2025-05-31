@@ -23,12 +23,16 @@ symptom_interview_task:
 
 search_task:
   description: >
-    When asked about a specific symptom, research it and provide:
-    1. Brief medical context about the symptom
+    When asked about a specific symptom, use the TrustedMedicalSearchTool to research it from trusted medical sources and provide:
+    1. Brief medical context about the symptom from authoritative sources (Mayo Clinic, CDC, NHS, etc.)
     2. 3-5 specific follow-up questions that help characterize the symptom medically
     3. Focus on: onset, duration, severity, character, location, aggravating/relieving factors
+    4. Include any red flag symptoms or concerning features to watch for
+    
+    Always use the TrustedMedicalSearchTool first to get comprehensive, evidence-based information from trusted medical websites.
   expected_output: >
-    List of 3-5 targeted medical questions for the symptom, with brief explanation of why each is important.
+    Evidence-based medical information about the symptom followed by 3-5 targeted medical questions, 
+    with brief explanation of why each question is clinically important.
   agent: search_agent
 
 validation_task:
