@@ -65,6 +65,7 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=True,  # Enable delegation
             llm="gemini/gemini-2.0-flash",
+            memory=True
         )
 
     @agent
@@ -75,6 +76,7 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=False,  # Focused specialist
             llm="gemini/gemini-2.0-flash",
+            memory=True
         )
 
     @agent  
@@ -85,6 +87,7 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=False,  # Focused specialist
             llm="gemini/gemini-2.0-flash",
+            memory=True
         )
 
     @agent
@@ -94,6 +97,7 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=True,  # Can delegate back to communicator
             llm="gemini/gemini-2.0-flash",
+            memory=True
         )
 
     @task
@@ -101,7 +105,8 @@ class MedicalSearch():
         return Task(
             config=self.tasks_config['symptom_interview_task'],
             agent=self.communicator(),
-            human_input=True
+            human_input=True,
+            
         )
 
     @task
@@ -128,4 +133,5 @@ class MedicalSearch():
             tasks=[self.symptom_interview_task(), self.validation_task(), self.report_task()],  # Sequential tasks
             process=Process.sequential,  # Sequential execution ensures all tasks run
             verbose=True,
+            memory=True
         )
