@@ -8,6 +8,7 @@ dependencies = [
     "crewai[tools]>=0.120.1,<1.0.0",
     "google-generativeai>=0.8.5",
     "langchain-huggingface>=0.2.0",
+    "reportlab>=4.0.0",
 ]
 
 [project.scripts]
