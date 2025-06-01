@@ -80,20 +80,23 @@ class SessionManager:
             "crew_storage",
             ".crewai_storage",
             
-            # Home directory storage
+            # Home directory storage (cross-platform)
             os.path.expanduser("~/.crewai"),
             os.path.expanduser("~/.crew"),
             os.path.expanduser("~/.crewai_memory"),
             os.path.expanduser("~/.crew_memory"),
             
-            # Temp storage that might be used
-            os.path.join(os.path.expanduser("~"), "AppData", "Local", "crewai"),
-            os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "crewai"),
-            "/tmp/crewai",
-            "/tmp/crew_memory",
+            # Platform-specific storage
+            os.path.join(os.path.expanduser("~"), "AppData", "Local", "crewai") if os.name == 'nt' else None,
+            os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "crewai") if os.name == 'nt' else None,
+            "/tmp/crewai" if os.name != 'nt' else None,
+            "/tmp/crew_memory" if os.name != 'nt' else None,
         ]
         
-        # Also check for memory folders with patterns
+        # Filter out None values for cross-platform compatibility
+        possible_memory_paths = [path for path in possible_memory_paths if path is not None]
+        
+        # Also check for memory folders with patterns (safely)
         pattern_paths = [
             "./*memory*",
             "./*crew*",
@@ -105,7 +108,8 @@ class SessionManager:
             try:
                 matches = glob.glob(pattern)
                 possible_memory_paths.extend(matches)
-            except:
+            except Exception:
+                # Ignore pattern matching errors
                 pass
         
         cleared_count = 0
@@ -113,17 +117,42 @@ class SessionManager:
             if os.path.exists(memory_path):
                 try:
                     if os.path.isdir(memory_path):
-                        shutil.rmtree(memory_path)
+                        # Use more robust directory removal
+                        import shutil
+                        shutil.rmtree(memory_path, ignore_errors=True)
                         print(f"🧹 Cleared memory directory: {memory_path}")
                     else:
                         os.remove(memory_path)
                         print(f"🧹 Cleared memory file: {memory_path}")
                     cleared_count += 1
                 except Exception as e:
-                    print(f"⚠️  Could not clear {memory_path}: {e}")
+                    # Don't print warnings for common missing directories
+                    if "cannot find the path" not in str(e).lower():
+                        print(f"⚠️  Could not clear {memory_path}: {e}")
         
         if cleared_count == 0:
             print("🧹 No previous memory storage found - clean start")
+    
+    def _ensure_crewai_directories(self):
+        """Ensure CrewAI directories exist to prevent path errors"""
+        try:
+            # Create the main CrewAI directory structure
+            base_paths = [
+                os.path.join(os.path.expanduser("~"), "AppData", "Local", "crewai") if os.name == 'nt' else os.path.expanduser("~/.crewai"),
+                os.path.join(os.path.expanduser("~"), "AppData", "Local", "crewai", "searchv2") if os.name == 'nt' else os.path.expanduser("~/.crewai/searchv2"),
+            ]
+            
+            for base_path in base_paths:
+                if base_path:
+                    # Create directory structure
+                    os.makedirs(base_path, exist_ok=True)
+                    os.makedirs(os.path.join(base_path, "entities"), exist_ok=True)
+                    os.makedirs(os.path.join(base_path, "short_term"), exist_ok=True)
+                    
+            print("📁 CrewAI directory structure ensured")
+            
+        except Exception as e:
+            print(f"⚠️  Could not create CrewAI directories: {e}")
     
     def _clear_langchain_memory(self):
         """Clear LangChain memory storage that might be used by CrewAI"""
@@ -226,6 +255,9 @@ class SessionManager:
             MedicalSearch crew instance
         """
         from searchv2.crew import MedicalSearch
+        
+        # Ensure CrewAI directories exist before creating crew
+        self._ensure_crewai_directories()
         
         # Always create a new instance to ensure fresh state
         self.crew_instance = MedicalSearch()
