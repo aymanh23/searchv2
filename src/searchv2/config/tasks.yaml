@@ -9,14 +9,12 @@ symptom_interview_task:
     Conduct a comprehensive symptom interview following this process:
     
     1. Welcome the patient and ask about their main symptoms
-    2. For EACH symptom mentioned, delegate to search_agent asking: 
-       "What are the most important follow-up questions for [specific symptom]?"
+    2. After each new symptom collected from the patient, delegate to search_agent asking: 
+       "What are the most important follow-up questions for [list of symptoms that you have collected so far]?"
     3. Use the search results to ask the most medically relevant questions
-    4. Continue until you have gathered for each symptom: onset, duration, severity, location, character, 
-       aggravating factors, relieving factors, associated symptoms
     
     Focus on thorough data collection. The validation and report generation will be handled by other team members.
-    Always ask ONE question at a time and delegate to search_agent for each new symptom.
+    Delegate to search_agent for each new symptom.
   expected_output: >
     Comprehensive symptom information organized by symptom with all essential medical details collected.
   agent: communicator
@@ -25,27 +23,18 @@ search_task:
   description: >
     When asked about a specific symptom, use the TrustedMedicalSearchTool to research it from trusted medical sources and provide:
     1. Brief medical context about the symptom from authoritative sources (Mayo Clinic, CDC, NHS, etc.)
-    2. 3-5 specific follow-up questions that help characterize the symptom medically
-    3. Focus on: onset, duration, severity, character, location, aggravating/relieving factors
-    4. Include any red flag symptoms or concerning features to watch for
+    2. Specific follow-up questions that help characterize the symptom medically
+    3. Include any red flag symptoms or concerning features to watch for
     
     Always use the TrustedMedicalSearchTool first to get comprehensive, evidence-based information from trusted medical websites.
   expected_output: >
-    Evidence-based medical information about the symptom followed by 3-5 targeted medical questions, 
+    Evidence-based medical information about the symptom followed by targeted medical questions, 
     with brief explanation of why each question is clinically important.
   agent: search_agent
 
 validation_task:
   description: >
     Review the collected symptom information from the interview and validate completeness.
-    
-    Check if these essentials are present for each symptom:
-    - Onset and duration
-    - Severity and impact 
-    - Location and character
-    - Aggravating and relieving factors
-    - Associated symptoms
-    
     If anything critical is missing, provide specific feedback on what's needed.
     If complete and consistent, approve for report generation.
   expected_output: >
@@ -53,18 +42,49 @@ validation_task:
     "INCOMPLETE - Missing: [specific details needed for each symptom]"
   agent: symptom_validator
 
+diagnosis_task:
+  description: >
+    Analyze all collected and validated symptom information to create preliminary diagnostic impressions.
+    
+    Process:
+    1. Review all symptom information from the interview and validation
+    2. Delegate to search_agent to research possible diagnoses based on symptom patterns
+    3. Ask search_agent to find information about differential diagnoses for the symptom cluster
+    4. Create a preliminary diagnostic assessment including:
+       - Most likely diagnostic considerations (primary differential diagnoses)
+       - Supporting evidence from symptoms and clinical presentation
+       - Red flags or concerning features that require immediate attention
+       - Additional clinical information that would help confirm or rule out diagnoses
+       - Recommended diagnostic tests or evaluations
+    
+    Focus on creating evidence-based diagnostic guidance that helps doctors prioritize their clinical assessment.
+  expected_output: >
+    Comprehensive preliminary diagnostic assessment including:
+    - Primary differential diagnoses with supporting rationale
+    - Clinical reasoning based on symptom patterns
+    - Red flags requiring immediate medical attention
+    - Recommended next steps for diagnostic workup
+    - Evidence-based clinical guidance for the treating physician
+  agent: diagnosis_agent
+
 report_task:
   description: >
-    Generate a professional medical report using the collected and validated symptom information.
+    Generate a professional medical report using the collected and validated symptom information and diagnostic assessment.
     
     Create a PDF report with these sections:
     1. Chief Complaint (main symptoms)
     2. History of Present Illness (detailed timeline)
     3. Symptom Details (organized by each symptom)
-    4. Clinical Summary (key findings)
-    5. Recommendations for Further Evaluation
+    4. Preliminary Diagnostic Assessment (from diagnosis_agent)
+       - Primary differential diagnoses with supporting rationale
+       - Clinical reasoning based on symptom patterns
+       - Red flags requiring immediate medical attention
+       - Recommended diagnostic workup and next steps
+    5. Clinical Summary (key findings)
+    6. Recommendations for Further Evaluation
     
     Save the report to the reports folder with timestamp and symptom description in filename.
   expected_output: >
-    Professional PDF medical report saved successfully with confirmation of filename and location.
+    Professional PDF medical report saved successfully with confirmation of filename and location, 
+    including comprehensive diagnostic assessment to assist physician decision-making.
   agent: report_generator
