@@ -36,7 +36,7 @@ validation_task:
   description: >
     Review the collected symptom information from the interview and validate completeness.
     If anything critical is missing, provide specific feedback on what's needed.
-    If complete and consistent, approve for report generation.
+    If complete and consistent, delegate to diagnosis_agent.
   expected_output: >
     Validation result: either "APPROVED - All essential information collected" or 
     "INCOMPLETE - Missing: [specific details needed for each symptom]"
@@ -58,6 +58,7 @@ diagnosis_task:
        - Recommended diagnostic tests or evaluations
     
     Focus on creating evidence-based diagnostic guidance that helps doctors prioritize their clinical assessment.
+    When you are done, delegate your input and output to report_generator.
   expected_output: >
     Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale

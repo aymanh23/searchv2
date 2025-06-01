@@ -78,7 +78,15 @@ class MedicalSearch():
             llm="gemini/gemini-2.0-flash",
             memory=True
         )
-
+    @agent
+    def diagnosis_agent(self) -> Agent:
+        return Agent(
+            config=self.agents_config['diagnosis_agent'],
+            verbose=True,
+            allow_delegation=True,  # Can delegate to search_agent for research
+            llm="gemini/gemini-2.0-flash",
+            memory=True
+        )
     @agent  
     def report_generator(self) -> Agent:
         return Agent(
