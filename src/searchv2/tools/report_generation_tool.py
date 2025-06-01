@@ -32,6 +32,7 @@ class ReportGenerationTool(BaseTool):
              chief_complaint: str = "",
              history_present_illness: str = "",
              symptoms: Dict[str, Any] = None,
+             diagnosis_assessment: str = "",
              **kwargs) -> str:
         """
         Generate a medical report PDF
@@ -41,6 +42,7 @@ class ReportGenerationTool(BaseTool):
             chief_complaint: Main symptoms reported
             history_present_illness: Detailed symptom timeline
             symptoms: Dictionary of organized symptom information
+            diagnosis_assessment: Preliminary diagnostic assessment from diagnosis agent
             **kwargs: Additional information for the report
         """
         try:
@@ -189,8 +191,16 @@ class ReportGenerationTool(BaseTool):
                     
                     story.append(Spacer(1, 8))
             
+            # Preliminary Diagnostic Assessment
+            story.append(Paragraph("5. PRELIMINARY DIAGNOSTIC ASSESSMENT", header_style))
+            if diagnosis_assessment:
+                story.append(Paragraph(diagnosis_assessment, styles['Normal']))
+            else:
+                story.append(Paragraph("No diagnostic assessment available.", styles['Normal']))
+            story.append(Spacer(1, 12))
+            
             # Clinical Summary
-            story.append(Paragraph("5. CLINICAL SUMMARY", header_style))
+            story.append(Paragraph("6. CLINICAL SUMMARY", header_style))
             summary_points = []
             
             if chief_complaint:
@@ -218,7 +228,7 @@ class ReportGenerationTool(BaseTool):
             story.append(Spacer(1, 12))
             
             # Recommendations
-            story.append(Paragraph("6. RECOMMENDATIONS FOR FURTHER EVALUATION", header_style))
+            story.append(Paragraph("7. RECOMMENDATIONS FOR FURTHER EVALUATION", header_style))
             
             recommendations = [
                 "• Complete physical examination by qualified healthcare provider",
@@ -234,7 +244,7 @@ class ReportGenerationTool(BaseTool):
             story.append(Spacer(1, 12))
             
             # Important Notes
-            story.append(Paragraph("7. IMPORTANT NOTES", header_style))
+            story.append(Paragraph("8. IMPORTANT NOTES", header_style))
             
             notes = [
                 "• This report is generated from an AI-assisted patient interview",
@@ -260,4 +270,4 @@ class ReportGenerationTool(BaseTool):
             return f"Medical report successfully generated and saved as: {filename}\nLocation: {filepath.absolute()}"
             
         except Exception as e:
-            return f"Error generating medical report: {str(e)}" 
+            return f"Error generating medical report: {str(e)}"

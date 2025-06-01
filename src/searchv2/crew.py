@@ -79,6 +79,16 @@ class MedicalSearch():
             memory=True
         )
 
+    @agent
+    def diagnosis_agent(self) -> Agent:
+        return Agent(
+            config=self.agents_config['diagnosis_agent'],
+            verbose=True,
+            allow_delegation=True,  # Can delegate to search_agent for research
+            llm="gemini/gemini-2.0-flash",
+            memory=True
+        )
+
     @agent  
     def report_generator(self) -> Agent:
         return Agent(
@@ -118,19 +128,27 @@ class MedicalSearch():
         )
 
     @task
+    def diagnosis_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['diagnosis_task'],
+            agent=self.diagnosis_agent(),
+            context=[self.symptom_interview_task(), self.validation_task()]  # Gets interview and validation results
+        )
+
+    @task
     def report_task(self) -> Task:
         return Task(
             config=self.tasks_config['report_task'],
             agent=self.report_generator(),
-            context=[self.symptom_interview_task(), self.validation_task()]  # Gets both interview and validation results
+            context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task()]  # Gets all previous results
         )
 
     @crew
     def crew(self) -> Crew:
         """Creates the MedicalSearch crew"""
         return Crew(
-            agents=[self.communicator(), self.search_agent(), self.report_generator(), self.symptom_validator()],
-            tasks=[self.symptom_interview_task(), self.validation_task(), self.report_task()],  # Sequential tasks
+            agents=[self.communicator(), self.search_agent(), self.diagnosis_agent(), self.report_generator(), self.symptom_validator()],
+            tasks=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task(), self.report_task()],  # Sequential tasks with diagnosis step
             process=Process.sequential,  # Sequential execution ensures all tasks run
             verbose=True,
             memory=True
