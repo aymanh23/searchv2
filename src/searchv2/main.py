@@ -11,8 +11,17 @@ import random
 import json
 from threading import Lock
 from datetime import datetime, timedelta
+from fastapi import FastAPI, HTTPException
+import uvicorn
 
 load_dotenv()
+
+# FastAPI app definition at the top
+app = FastAPI(
+    title="CrewAI Interaction API",
+    description="API to interact with CrewAI agents for symptom analysis and reporting.",
+    version="0.1.0"
+)
 
 # --- BEGIN ADDED CODE FOR CONVERSATION LOG ---
 # Define the conversation log file path relative to the storage directory
@@ -81,9 +90,10 @@ def save_conversation_state(log_file, state):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(state) + '\n')
 
-def run():
+def run_crew_process():
     """
     Run the medical symptom interview crew with rate limiting and enhanced retry logic.
+    This function will be called by the API endpoint.
     """
     # Set custom storage path for CrewAI memory to avoid Windows path length issues
     project_root = Path(__file__).resolve().parent.parent # Assuming main.py is in src/searchv2
@@ -142,7 +152,7 @@ def run():
             print("SYMPTOM INTERVIEW COMPLETE")
             print("="*50)
             print(result)
-            return  # Success - exit the function
+            return result
             
         except Exception as e:
             error_message = str(e)
@@ -166,7 +176,7 @@ def run():
                 else:
                     print("Max retries reached. The VertexAI model is experiencing high load.")
                     print("Please try again in a few minutes when the load is lower.")
-                    break
+                    raise HTTPException(status_code=503, detail="VertexAI model is overloaded. Max retries reached.")
             
             # Check for other API error conditions
             elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
@@ -178,11 +188,32 @@ def run():
                 else:
                     print("Max retries reached. API rate limit exceeded.")
                     print("Please try again later when the rate limit resets.")
-                    break
+                    raise HTTPException(status_code=429, detail="API rate limit exceeded. Max retries reached.")
             
             print("Full traceback:")
             traceback.print_exc()
-            break  # Exit on non-retryable errors
+            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {error_message}")
+    
+    # If loop finishes without returning (e.g. all retries failed for non-specific reasons)
+    raise HTTPException(status_code=500, detail="Crew process failed after multiple retries.")
+
+
+@app.get("/")
+async def read_root():
+    return {"message": "CrewAI API is running"}
+
+@app.post("/crew/kickoff")
+async def kickoff_crew():
+    try:
+        result = run_crew_process()
+        return {"status": "success", "result": result}
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to kickoff crew: {str(e)}")
+
+# Further endpoints for agent interaction will be added here.
 
 if __name__ == "__main__":
-    run()
+    uvicorn.run(app, host="127.0.0.1", port=8000)
