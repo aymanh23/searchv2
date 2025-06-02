@@ -19,6 +19,24 @@ symptom_interview_task:
     Comprehensive symptom information organized by symptom with all essential medical details collected.
   agent: communicator
 
+follow_up_task:
+  description: >
+    Based on the preliminary diagnosis and validation results, ask specific follow-up questions to gather additional details.
+    
+    Process:
+    1. Review the diagnosis agent's output to understand what additional information is needed
+    2. Ask specific questions about:
+       - Symptom characteristics (location, severity, timing)
+       - Aggravating and relieving factors
+       - Associated symptoms
+       - Relevant medical history
+    3. Focus on gathering information that will help confirm or rule out the preliminary diagnoses
+    
+    IMPORTANT: Do NOT start a new interview. Continue from the previous conversation and ask only the specific follow-up questions needed.
+  expected_output: >
+    Additional detailed information about symptoms and medical history that helps refine the diagnostic assessment.
+  agent: communicator
+
 search_task:
   description: >
     When asked about a specific symptom, use the TrustedMedicalSearchTool to research it from trusted medical sources and provide:

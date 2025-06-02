@@ -7,6 +7,10 @@ from searchv2.crew import MedicalSearch
 from dotenv import load_dotenv
 import os
 from pathlib import Path
+import random
+import json
+from threading import Lock
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -19,9 +23,67 @@ CONVERSATION_LOG_FILENAME = "human_interaction.log"
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
+class RateLimiter:
+    def __init__(self, max_requests_per_minute):
+        self.max_requests = max_requests_per_minute
+        self.requests = []
+        self.lock = Lock()
+    
+    def wait_if_needed(self):
+        with self.lock:
+            now = datetime.now()
+            # Remove requests older than 1 minute
+            self.requests = [req_time for req_time in self.requests 
+                           if now - req_time < timedelta(minutes=1)]
+            
+            if len(self.requests) >= self.max_requests:
+                # Calculate wait time until oldest request is 1 minute old
+                wait_time = 60 - (now - self.requests[0]).total_seconds()
+                if wait_time > 0:
+                    print(f"Rate limit reached. Waiting {wait_time:.1f} seconds...")
+                    time.sleep(wait_time)
+                    # Update now after waiting
+                    now = datetime.now()
+                    # Clean up old requests again
+                    self.requests = [req_time for req_time in self.requests 
+                                   if now - req_time < timedelta(minutes=1)]
+            
+            # Add current request
+            self.requests.append(now)
+
+def is_vertex_ai_overload(error_message):
+    """Check if the error is a VertexAI overload error"""
+    try:
+        if "VertexAIException" in error_message:
+            error_data = json.loads(error_message.split("VertexAIException - ")[1])
+            return error_data.get("error", {}).get("code") == 503
+    except:
+        pass
+    return False
+
+def load_conversation_history(log_file):
+    """Load conversation history from log file"""
+    if not log_file.exists():
+        return []
+    
+    history = []
+    with open(log_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            try:
+                entry = json.loads(line.strip())
+                history.append(entry)
+            except json.JSONDecodeError:
+                continue
+    return history
+
+def save_conversation_state(log_file, state):
+    """Save conversation state to log file"""
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(state) + '\n')
+
 def run():
     """
-    Run the medical symptom interview crew with retry logic for API overload errors.
+    Run the medical symptom interview crew with rate limiting and enhanced retry logic.
     """
     # Set custom storage path for CrewAI memory to avoid Windows path length issues
     project_root = Path(__file__).resolve().parent.parent # Assuming main.py is in src/searchv2
@@ -38,15 +100,44 @@ def run():
     print(f"Conversation log for this run will be at: {conversation_log_file.absolute()}")
     # --- END ADDED CODE FOR CONVERSATION LOG ---
 
-    max_retries = 3
-    retry_delay = 8  # seconds
+    # Load existing conversation history
+    conversation_history = load_conversation_history(conversation_log_file)
+    if conversation_history:
+        print(f"Loaded {len(conversation_history)} previous conversation entries")
+
+    # Initialize rate limiter - 20 requests per minute for VertexAI
+    rate_limiter = RateLimiter(max_requests_per_minute=20)
+
+    # Enhanced retry configuration for VertexAI
+    max_retries = 8  # Increased retries for VertexAI
+    base_delay = 15  # Start with 15 seconds for VertexAI
+    max_delay = 120  # Maximum delay of 120 seconds
+    jitter = 0.2     # Increased jitter to 20%
     
     for attempt in range(max_retries + 1):
         try:
+            # Apply rate limiting before making the request
+            rate_limiter.wait_if_needed()
+            
             print(f"Creating crew... (attempt {attempt + 1}/{max_retries + 1})")
             crew = MedicalSearch().crew()
+            
+            # If we have conversation history, restore it
+            if conversation_history:
+                print("Restoring previous conversation state...")
+                for entry in conversation_history:
+                    save_conversation_state(conversation_log_file, entry)
+            
             print("Starting crew kickoff...")
             result = crew.kickoff()
+            
+            # Save the final state
+            save_conversation_state(conversation_log_file, {
+                "timestamp": datetime.now().isoformat(),
+                "type": "completion",
+                "result": result
+            })
+            
             print("\n" + "="*50)
             print("SYMPTOM INTERVIEW COMPLETE")
             print("="*50)
@@ -57,16 +148,37 @@ def run():
             error_message = str(e)
             print(f"An error occurred while running the crew: {e}")
             
-            # Check if it's the API overload error
-            if "overloaded" in error_message.lower() or "503" in error_message:
+            # Save error state to conversation log
+            save_conversation_state(conversation_log_file, {
+                "timestamp": datetime.now().isoformat(),
+                "type": "error",
+                "error": error_message
+            })
+            
+            # Check for VertexAI overload specifically
+            if is_vertex_ai_overload(error_message):
                 if attempt < max_retries:
-                    print(f"API overload detected. Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
+                    # Calculate delay with exponential backoff and jitter
+                    delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
+                    print(f"VertexAI model is overloaded. Retrying in {delay:.1f} seconds...")
+                    time.sleep(delay)
                     continue
                 else:
-                    print("Max retries reached. The Gemini API appears to be experiencing widespread issues.")
-                    print("This is a Google server-side problem. Please try again later.")
+                    print("Max retries reached. The VertexAI model is experiencing high load.")
+                    print("Please try again in a few minutes when the load is lower.")
+                    break
+            
+            # Check for other API error conditions
+            elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
+                if attempt < max_retries:
+                    delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
+                    print(f"API rate limit detected. Retrying in {delay:.1f} seconds...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    print("Max retries reached. API rate limit exceeded.")
+                    print("Please try again later when the rate limit resets.")
+                    break
             
             print("Full traceback:")
             traceback.print_exc()
