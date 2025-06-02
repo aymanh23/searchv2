@@ -66,8 +66,8 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=True,  # Enable delegation
             llm="gemini/gemini-2.0-flash-lite",
-            memory=True,
-            max_rpm=4
+            memory=False,
+            max_rpm=50
         )
 
     @agent
@@ -78,8 +78,8 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=False,  # Focused specialist
             llm="gemini/gemini-2.0-flash-lite",
-            memory=True,
-            max_rpm=4               
+            memory=False,
+            max_rpm=40               
         )
     @agent
     def diagnosis_agent(self) -> Agent:
@@ -88,8 +88,8 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=True,  # Can delegate to search_agent for research
             llm="gemini/gemini-2.0-flash-lite",
-            memory=True,
-            max_rpm=4       
+            memory=False,
+            max_rpm=40       
         )
     @agent  
     def report_generator(self) -> Agent:
@@ -99,8 +99,8 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=False,  # Focused specialist
             llm="gemini/gemini-2.0-flash-lite",
-            memory=True,
-            max_rpm=4
+            memory=False,
+            max_rpm=40
         )
 
     @agent
@@ -110,8 +110,8 @@ class MedicalSearch():
             verbose=True,
             allow_delegation=True,  # Can delegate back to communicator
             llm="gemini/gemini-2.0-flash-lite",
-            memory=True,
-            max_rpm=4
+            memory=False,
+            max_rpm=40
         )
 
     @task
@@ -120,7 +120,7 @@ class MedicalSearch():
             config=self.tasks_config['symptom_interview_task'],
             agent=self.communicator(),
             human_input=True,
-            max_rpm=4,
+            max_rpm=40,
             context=[]  # Initial task has no context
         )
 
@@ -130,7 +130,7 @@ class MedicalSearch():
             config=self.tasks_config['validation_task'],
             agent=self.symptom_validator(),
             context=[self.symptom_interview_task()],  # Gets interview results as input
-            max_rpm=4
+            max_rpm=40
         )
 
     @task
@@ -139,26 +139,17 @@ class MedicalSearch():
             config=self.tasks_config['diagnosis_task'],
             agent=self.diagnosis_agent(),
             context=[self.symptom_interview_task(), self.validation_task()],  # Gets both interview and validation results
-            max_rpm=4
+            max_rpm=40
         )
 
-    @task
-    def follow_up_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['symptom_interview_task'],  # Reuse the same config but with different context
-            agent=self.communicator(),
-            human_input=True,
-            context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task()],  # Gets all previous results
-            max_rpm=4
-        )
 
     @task
     def report_task(self) -> Task:
         return Task(
             config=self.tasks_config['report_task'],
             agent=self.report_generator(),
-            context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task(), self.follow_up_task()],  # Gets all results including follow-up
-            max_rpm=4
+            context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task()],  # Gets all results including follow-up
+            max_rpm=40
         )
 
     @crew
@@ -175,11 +166,10 @@ class MedicalSearch():
                 self.symptom_interview_task(),  # Initial interview
                 self.validation_task(),         # Validate initial information
                 self.diagnosis_task(),          # Create preliminary diagnosis
-                self.follow_up_task(),          # Get additional details based on diagnosis
                 self.report_task()              # Generate final report
             ],
             process=Process.sequential,  # Sequential execution ensures all tasks run
             verbose=True,
-            memory=True,
-            max_rpm=4
+            memory=False,
+            max_rpm=40
         )

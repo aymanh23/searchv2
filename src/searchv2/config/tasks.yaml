@@ -8,33 +8,16 @@ symptom_interview_task:
   description: >
     Conduct a comprehensive symptom interview following this process:
     
-    1. Welcome the patient and ask about their main symptoms
-    2. After each new symptom collected from the patient, delegate to search_agent asking: 
+    1. If it is the first time interacting with the patient, Welcome the patient and ask about their main symptoms, 
+    2. Otherwise do not interfere with the workflow and After each new symptom collected from the patient, delegate to search_agent asking: 
        "What are the most important follow-up questions for [list of symptoms that you have collected so far]?"
     3. Use the search results to ask the most medically relevant questions
+    4. the patient might ask you to elaborate on something you answer with your best knowledge without delegating to the search_agent. 
     
     Focus on thorough data collection. The validation and report generation will be handled by other team members.
     Delegate to search_agent for each new symptom.
   expected_output: >
     Comprehensive symptom information organized by symptom with all essential medical details collected.
-  agent: communicator
-
-follow_up_task:
-  description: >
-    Based on the preliminary diagnosis and validation results, ask specific follow-up questions to gather additional details.
-    
-    Process:
-    1. Review the diagnosis agent's output to understand what additional information is needed
-    2. Ask specific questions about:
-       - Symptom characteristics (location, severity, timing)
-       - Aggravating and relieving factors
-       - Associated symptoms
-       - Relevant medical history
-    3. Focus on gathering information that will help confirm or rule out the preliminary diagnoses
-    
-    IMPORTANT: Do NOT start a new interview. Continue from the previous conversation and ask only the specific follow-up questions needed.
-  expected_output: >
-    Additional detailed information about symptoms and medical history that helps refine the diagnostic assessment.
   agent: communicator
 
 search_task:
@@ -53,7 +36,8 @@ search_task:
 validation_task:
   description: >
     Review the collected symptom information from the interview and validate completeness.
-    If anything critical is missing, provide specific feedback on what's needed.
+    If anything critical is missing, provide specific feedback on what's needed and delegate back to the communicator.
+    If the patient has answers such as ` i dont know ` for some aspect or there is uncertainty, you accept it and note it.
     If complete and consistent, delegate to diagnosis_agent.
   expected_output: >
     Validation result: either "APPROVED - All essential information collected" or 
@@ -76,7 +60,7 @@ diagnosis_task:
        - Recommended diagnostic tests or evaluations
     
     Focus on creating evidence-based diagnostic guidance that helps doctors prioritize their clinical assessment.
-    When you are done, delegate your input and output to report_generator.
+    When you are done, delegate to report_generator.
   expected_output: >
     Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale
