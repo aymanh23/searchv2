@@ -2,7 +2,35 @@ from crewai.tools import BaseTool
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, Dict, List
+from threading import Event
+from pydantic import Field, PrivateAttr
 
+class MessageBroker:
+    _instance = None
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(MessageBroker, cls).__new__(cls)
+            cls._instance.messages = []
+            cls._instance.current_question = None
+            cls._instance.new_message_event = Event()
+        return cls._instance
+
+    def add_message(self, message: str):
+        self.messages.append(message)
+        self.new_message_event.set()
+
+    def get_message(self) -> str:
+        while not self.messages:
+            self.new_message_event.wait()
+            self.new_message_event.clear()
+        return self.messages.pop(0)
+
+    def set_question(self, question: str):
+        self.current_question = question
+
+    def get_question(self) -> Optional[str]:
+        return self.current_question
 
 class HumanInputTool(BaseTool):
     name: str = "Human Input"
@@ -10,10 +38,21 @@ class HumanInputTool(BaseTool):
     _first_call: bool = True  # Class attribute to track first call
     _conversation_log_file = None
     _last_response = None  # Track the last user response
+    _broker: MessageBroker = PrivateAttr(default_factory=MessageBroker)
 
     @classmethod
     def set_conversation_log(cls, log_file):
         cls._conversation_log_file = log_file
+
+    @classmethod
+    def get_current_question(cls) -> Optional[str]:
+        """Get the current question being asked"""
+        return MessageBroker().get_question()
+
+    @classmethod
+    def add_user_message(cls, message: str):
+        """Add a user message to the queue"""
+        MessageBroker().add_message(message)
 
     def _save_interaction(self, question: str, answer: str):
         """Save the interaction to the conversation log"""
@@ -35,6 +74,11 @@ class HumanInputTool(BaseTool):
         return self._last_response
 
     def _run(self, question: str) -> str:
+        # Store the current question
+        if HumanInputTool._first_call: pass 
+        else: self._broker.set_question(question)
+        
+
         if HumanInputTool._first_call:
             HumanInputTool._first_call = False
             greeting = (
@@ -43,12 +87,14 @@ class HumanInputTool(BaseTool):
                 "I'll ask you a few questions — just answer in your own words, and I'll take care of the rest.\n"
                 "To begin, could you please tell me what symptoms you're experiencing today?"
             )
-            answer = input(f"{greeting}\n> ")
+            # Wait for user's response
+            answer = self._broker.get_message()
             validated_answer = self._validate_response(answer)
             self._save_interaction(greeting, validated_answer)
             return validated_answer
         else:
-            answer = input(f"{question}\n> ")
+            # Wait for user's response
+            answer = self._broker.get_message()
             validated_answer = self._validate_response(answer)
             self._save_interaction(question, validated_answer)
             return validated_answer

@@ -9,10 +9,12 @@ import os
 from pathlib import Path
 import random
 import json
-from threading import Lock
+from threading import Lock, Thread
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 import uvicorn
+from searchv2.tools.human_input_tool import HumanInputTool, MessageBroker
 
 load_dotenv()
 
@@ -31,6 +33,13 @@ CONVERSATION_LOG_FILENAME = "human_interaction.log"
 # --- END ADDED CODE FOR CONVERSATION LOG ---
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
+
+# Global variable to store the crew process
+crew_process = None
+crew_thread = None
+
+class ChatMessage(BaseModel):
+    message: str
 
 class RateLimiter:
     def __init__(self, max_requests_per_minute):
@@ -92,16 +101,17 @@ def save_conversation_state(log_file, state):
 
 def run_crew_process():
     """
-    Run the medical symptom interview crew with rate limiting and enhanced retry logic.
-    This function will be called by the API endpoint.
+    Run the medical symptom interview crew in a separate thread
     """
+    global crew_process
+
     # Set custom storage path for CrewAI memory to avoid Windows path length issues
     project_root = Path(__file__).resolve().parent.parent # Assuming main.py is in src/searchv2
     storage_dir_path = project_root / "crewai_storage"
     storage_dir_path.mkdir(parents=True, exist_ok=True)
     os.environ["CREWAI_STORAGE_DIR"] = str(storage_dir_path.absolute())
     print(f"CrewAI memory storage will be at: {os.environ['CREWAI_STORAGE_DIR']}")
-
+    
     # --- BEGIN ADDED CODE FOR CONVERSATION LOG ---
     # Initialize/clear the conversation log for this run
     conversation_log_file = storage_dir_path / CONVERSATION_LOG_FILENAME
@@ -131,6 +141,7 @@ def run_crew_process():
             
             print(f"Creating crew... (attempt {attempt + 1}/{max_retries + 1})")
             crew = MedicalSearch().crew()
+            crew_process = crew  # Store the crew process globally
             
             # If we have conversation history, restore it
             if conversation_history:
@@ -165,10 +176,8 @@ def run_crew_process():
                 "error": error_message
             })
             
-            # Check for VertexAI overload specifically
             if is_vertex_ai_overload(error_message):
                 if attempt < max_retries:
-                    # Calculate delay with exponential backoff and jitter
                     delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
                     print(f"VertexAI model is overloaded. Retrying in {delay:.1f} seconds...")
                     time.sleep(delay)
@@ -176,9 +185,8 @@ def run_crew_process():
                 else:
                     print("Max retries reached. The VertexAI model is experiencing high load.")
                     print("Please try again in a few minutes when the load is lower.")
-                    raise HTTPException(status_code=503, detail="VertexAI model is overloaded. Max retries reached.")
+                    break
             
-            # Check for other API error conditions
             elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
                 if attempt < max_retries:
                     delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
@@ -188,32 +196,68 @@ def run_crew_process():
                 else:
                     print("Max retries reached. API rate limit exceeded.")
                     print("Please try again later when the rate limit resets.")
-                    raise HTTPException(status_code=429, detail="API rate limit exceeded. Max retries reached.")
+                    break
             
             print("Full traceback:")
             traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {error_message}")
-    
-    # If loop finishes without returning (e.g. all retries failed for non-specific reasons)
-    raise HTTPException(status_code=500, detail="Crew process failed after multiple retries.")
-
+            break  # Exit on non-retryable errors
 
 @app.get("/")
 async def read_root():
     return {"message": "CrewAI API is running"}
 
-@app.post("/crew/kickoff")
-async def kickoff_crew():
-    try:
-        result = run_crew_process()
-        return {"status": "success", "result": result}
-    except HTTPException as http_exc:
-        raise http_exc
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to kickoff crew: {str(e)}")
+@app.get("/crew/kickoff")
+async def run():
+    """
+    Run the medical symptom interview crew with rate limiting and enhanced retry logic.
+    Returns the initial greeting message that will be asked to the user.
+    """
+    global crew_thread
 
-# Further endpoints for agent interaction will be added here.
+    # Return the initial greeting message
+    initial_greeting = (
+        "Hello! I'm your MedicalAI Assistant.\n"
+        "I'm here to help collect and organize details about your symptoms so your doctor can better understand what you're experiencing.\n"
+        "I'll ask you a few questions — just answer in your own words, and I'll take care of the rest.\n"
+        "To begin, could you please tell me what symptoms you're experiencing today?"
+    )
+
+    # Start the crew process in a separate thread if not already running
+    if crew_thread is None or not crew_thread.is_alive():
+        crew_thread = Thread(target=run_crew_process)
+        crew_thread.daemon = True  # Make the thread daemon so it exits when the main thread exits
+        crew_thread.start()
+    
+    return {"question": initial_greeting}
+
+@app.post("/chat")
+async def chat(message: ChatMessage):
+    """
+    Handle chat messages from the user and return the next question
+    """
+    if crew_thread is None or not crew_thread.is_alive():
+        raise HTTPException(status_code=400, detail="Crew process not started. Please call /crew/kickoff first")
+
+    # Add the message to the HumanInputTool queue
+    HumanInputTool.add_user_message(message.message)
+
+    # Wait for the next question (max 30 seconds)
+    max_wait = 30  # seconds
+    wait_interval = 0.1  # seconds
+    attempts = int(max_wait / wait_interval)
+
+    for _ in range(attempts):
+        current_question = HumanInputTool.get_current_question()
+        if current_question:
+            return {"question": current_question}
+        time.sleep(wait_interval)
+
+    # If we still don't have a question after waiting
+    raise HTTPException(
+        status_code=408,
+        detail="Timeout waiting for agent response. Please try again."
+    )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
