@@ -8,7 +8,6 @@ from searchv2.crew import MedicalSearch
 from dotenv import load_dotenv
 import os
 from pathlib import Path
-from uuid import UUID
 import random
 import json
 from threading import Lock, Thread
@@ -98,7 +97,7 @@ def save_conversation_state(log_file, state):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(state) + '\n')
 
-def run_crew_process(session_uuid: UUID):
+def run_crew_process(session_uuid: str):
     """
     Run the medical symptom interview crew in a separate thread
     """
@@ -205,7 +204,7 @@ async def read_root():
     return {"message": "CrewAI API is running"}
 
 @app.get("/crew/kickoff")
-async def run(session_uuid: UUID):
+async def run(session_uuid: str):
     """
     Run the medical symptom interview crew with rate limiting and enhanced retry logic.
     Returns the initial greeting message that will be asked to the user.
@@ -228,7 +227,7 @@ async def run(session_uuid: UUID):
     return {"question": initial_greeting}
 
 @app.post("/chat")
-async def chat(session_uuid: UUID, message: ChatMessage):
+async def chat(session_uuid: str, message: ChatMessage):
     """
     Handle chat messages from the user and return the next question
     """
