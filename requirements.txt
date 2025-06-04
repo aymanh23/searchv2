@@ -18,3 +18,5 @@ reportlab
 
 google-generativeai
 
+firebase_admin
+

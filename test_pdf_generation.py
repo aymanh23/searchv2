@@ -59,10 +59,12 @@ def test_pdf_generation():
         patient_info=sample_patient_info,
         chief_complaint=sample_chief_complaint,
         history_present_illness=sample_history,
-        symptoms=sample_symptoms
+        symptoms=sample_symptoms,
+        patient_uuid="test-patient-123",
     )
     
     print(f"Result: {result}")
 
+
 if __name__ == "__main__":
-    test_pdf_generation() 
+    test_pdf_generation()

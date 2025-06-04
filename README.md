@@ -22,6 +22,15 @@ crewai install
 
 **Add your `OPENAI_API_KEY` into the `.env` file**
 
+### Firebase Setup
+
+To enable uploading reports to Firebase, set the following environment variables:
+
+- `FIREBASE_CREDENTIALS_JSON` **or** `FIREBASE_CREDENTIALS_FILE` – Service account credentials as a JSON string or path to the JSON file.
+- `FIREBASE_STORAGE_BUCKET` – Name of the Firebase Storage bucket where reports will be uploaded.
+
+Ensure the service account has permission for Cloud Storage and Firestore.
+
 - Modify `src/searchv2/config/agents.yaml` to define your agents
 - Modify `src/searchv2/config/tasks.yaml` to define your tasks
 - Modify `src/searchv2/crew.py` to add your own logic, tools and specific args

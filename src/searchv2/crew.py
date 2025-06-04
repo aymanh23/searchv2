@@ -18,9 +18,10 @@ from pathlib import Path
 class MedicalSearch():
     """MedicalSearch crew"""
 
-    def __init__(self, broker: MessageBroker, conversation_log: Path):
+    def __init__(self, broker: MessageBroker, conversation_log: Path, patient_uuid: str = ""):
         self._broker = broker
         self._conversation_log = conversation_log
+        self._patient_uuid = patient_uuid
 
     @tool
     def WebsiteSearchTool(self):
@@ -60,7 +61,7 @@ class MedicalSearch():
 
     @tool
     def ReportGenerationTool(self):
-        return ReportGenerationTool()
+        return ReportGenerationTool(patient_uuid=self._patient_uuid)
 
     @agent
     def communicator(self) -> Agent:

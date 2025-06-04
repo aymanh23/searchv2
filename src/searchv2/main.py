@@ -139,7 +139,7 @@ def run_crew_process(session_uuid: str):
                 rate_limiter.wait_if_needed()
 
                 print(f"Creating crew... (attempt {attempt + 1}/{max_retries + 1})")
-                crew = MedicalSearch(session.broker, conversation_log_file).crew()
+                crew = MedicalSearch(session.broker, conversation_log_file, patient_uuid=session_uuid).crew()
                 session.crew_process = crew
 
                 if conversation_history:
