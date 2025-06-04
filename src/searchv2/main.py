@@ -8,6 +8,7 @@ from searchv2.crew import MedicalSearch
 from dotenv import load_dotenv
 import os
 from pathlib import Path
+from uuid import UUID
 import random
 import json
 from threading import Lock, Thread
@@ -97,7 +98,7 @@ def save_conversation_state(log_file, state):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(state) + '\n')
 
-def run_crew_process(session_id: str):
+def run_crew_process(session_uuid: UUID):
     """
     Run the medical symptom interview crew in a separate thread
     """
@@ -110,8 +111,8 @@ def run_crew_process(session_id: str):
     
     # --- BEGIN ADDED CODE FOR CONVERSATION LOG ---
     # Initialize/clear the conversation log for this run
-    conversation_log_file = storage_dir_path / f"human_interaction_{session_id}.log"
-    session = SessionManager.get_session(session_id)
+    conversation_log_file = storage_dir_path / f"human_interaction_{session_uuid}.log"
+    session = SessionManager.get_session(session_uuid)
     session.log_file = conversation_log_file
     if conversation_log_file.exists():
         conversation_log_file.unlink()
@@ -198,14 +199,13 @@ def run_crew_process(session_id: str):
                 traceback.print_exc()
                 break  # Exit on non-retryable errors
     finally:
-        SessionManager.cleanup_session(session_id)
-
+        SessionManager.cleanup_session(str(session_uuid))
 @app.get("/")
 async def read_root():
     return {"message": "CrewAI API is running"}
 
 @app.get("/crew/kickoff")
-async def run(session_id: str):
+async def run(session_uuid: UUID):
     """
     Run the medical symptom interview crew with rate limiting and enhanced retry logic.
     Returns the initial greeting message that will be asked to the user.
@@ -218,21 +218,21 @@ async def run(session_id: str):
         "To begin, could you please tell me what symptoms you're experiencing today?"
     )
 
-    session = SessionManager.get_session(session_id)
+    session = SessionManager.get_session(session_uuid)
 
     if session.crew_thread is None or not session.crew_thread.is_alive():
-        session.crew_thread = Thread(target=run_crew_process, args=(session_id,))
+        session.crew_thread = Thread(target=run_crew_process, args=(session_uuid,))
         session.crew_thread.daemon = True
         session.crew_thread.start()
 
     return {"question": initial_greeting}
 
 @app.post("/chat")
-async def chat(session_id: str, message: ChatMessage):
+async def chat(session_uuid: UUID, message: ChatMessage):
     """
     Handle chat messages from the user and return the next question
     """
-    session = SessionManager.get_session(session_id)
+    session = SessionManager.get_session(session_uuid)
     if session.crew_thread is None or not session.crew_thread.is_alive():
         raise HTTPException(status_code=400, detail="Crew process not started. Please call /crew/kickoff first")
 

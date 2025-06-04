@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from threading import Lock, Thread
 from pathlib import Path
 from typing import Dict, Optional
+from uuid import UUID
 
 from .tools.human_input_tool import MessageBroker
 
@@ -23,12 +24,13 @@ class SessionManager:
     _lock: Lock = Lock()
 
     @classmethod
-    def get_session(cls, session_id: str) -> Session:
+    def get_session(cls, session_uuid: UUID) -> Session:
+        key = str(session_uuid)
         with cls._lock:
-            session = cls._sessions.get(session_id)
+            session = cls._sessions.get(key)
             if session is None:
                 session = Session(broker=MessageBroker())
-                cls._sessions[session_id] = session
+                cls._sessions[key] = session
             return session
 
     @classmethod
