@@ -19,6 +19,7 @@ from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 
 from searchv2 import firebase_utils
+from searchv2.session import SessionManager
 
 
 class ReportGenerationTool(BaseTool):
@@ -31,7 +32,8 @@ class ReportGenerationTool(BaseTool):
 
     def __init__(self, patient_uuid: str = ""):
         super().__init__()
-        self.patient_uuid = patient_uuid
+        # Store the UUID to help find the correct session later
+        self._initial_uuid = patient_uuid
 
     def _run(self,
              patient_info: Optional[Dict[str, Any]] = None,
@@ -39,7 +41,6 @@ class ReportGenerationTool(BaseTool):
              history_present_illness: str = "",
              symptoms: Dict[str, Any] = None,
              diagnosis_assessment: str = "",
-             patient_uuid: str = "",
              **kwargs) -> str:
         """
         Generate a medical report PDF
@@ -50,12 +51,18 @@ class ReportGenerationTool(BaseTool):
             history_present_illness: Detailed symptom timeline
             symptoms: Dictionary of organized symptom information
             diagnosis_assessment: Preliminary diagnostic assessment from diagnosis agent
-            patient_uuid: Unique identifier for the patient
             **kwargs: Additional information for the report
         """
         try:
-            if not patient_uuid:
-                patient_uuid = self.patient_uuid
+            # Get the session from SessionManager using our initial UUID
+            if not self._initial_uuid:
+                raise ValueError("No patient UUID available - required for report generation")
+            
+            # Get the session - this will return the existing session since we're in the same conversation
+            session = SessionManager.get_session(self._initial_uuid)
+            if not session:
+                raise ValueError("Could not find active session for report generation")
+                
             # Create reports directory if it doesn't exist
             reports_dir = Path("reports")
             reports_dir.mkdir(exist_ok=True)
@@ -278,9 +285,9 @@ class ReportGenerationTool(BaseTool):
             doc.build(story)
 
             storage_info = ""
-            if patient_uuid:
-                storage_path = firebase_utils.upload_report(filepath, patient_uuid)
-                firebase_utils.log_report(patient_uuid, storage_path)
+            if session.patient_uuid:
+                storage_path = firebase_utils.upload_report(filepath, session.patient_uuid)
+                firebase_utils.log_report(session.patient_uuid, storage_path)
                 storage_info = f"\nUploaded to Firebase Storage at: {storage_path}"
 
             return (
