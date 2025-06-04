@@ -3,6 +3,7 @@ import sys
 import warnings
 import traceback
 import time
+import asyncio
 from searchv2.crew import MedicalSearch
 from dotenv import load_dotenv
 import os
@@ -241,22 +242,35 @@ async def chat(message: ChatMessage):
     # Add the message to the HumanInputTool queue
     HumanInputTool.add_user_message(message.message)
 
-    # Wait for the next question (max 30 seconds)
-    max_wait = 30  # seconds
-    wait_interval = 0.1  # seconds
-    attempts = int(max_wait / wait_interval)
+    async def wait_for_response():
+        max_wait = 300  # 5 minutes
+        wait_interval = 0.1
+        attempts = int(max_wait / wait_interval)
 
-    for _ in range(attempts):
-        current_question = HumanInputTool.get_current_question()
-        if current_question:
-            return {"question": current_question}
-        time.sleep(wait_interval)
+        for _ in range(attempts):
+            current_question = HumanInputTool.get_current_question()
+            if current_question:
+                return {"question": current_question}
+            await asyncio.sleep(wait_interval)
+        
+        raise HTTPException(
+            status_code=408,
+            detail="Timeout waiting for agent response. Please try again."
+        )
 
-    # If we still don't have a question after waiting
-    raise HTTPException(
-        status_code=408,
-        detail="Timeout waiting for agent response. Please try again."
-    )
+    try:
+        # Wait for response with timeout
+        return await asyncio.wait_for(wait_for_response(), timeout=300)  # 5 minutes timeout
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=408,
+            detail="Request timeout after 5 minutes. The crew is still processing your request. Please try again."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while processing your request: {str(e)}"
+        )
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
