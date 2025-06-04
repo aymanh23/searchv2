@@ -119,7 +119,7 @@ class MedicalSearch():
         return Task(
             config=self.tasks_config['symptom_interview_task'],
             agent=self.communicator(),
-            human_input=True,
+            human_input=False,  # Disable CrewAI's built-in feedback prompt
             max_rpm=40,
             context=[]  # Initial task has no context
         )
@@ -129,6 +129,7 @@ class MedicalSearch():
         return Task(
             config=self.tasks_config['validation_task'],
             agent=self.symptom_validator(),
+            human_input=False,  # Disable for consistency
             context=[self.symptom_interview_task()],  # Gets interview results as input
             max_rpm=40
         )
@@ -138,16 +139,17 @@ class MedicalSearch():
         return Task(
             config=self.tasks_config['diagnosis_task'],
             agent=self.diagnosis_agent(),
+            human_input=False,  # Disable for consistency
             context=[self.symptom_interview_task(), self.validation_task()],  # Gets both interview and validation results
             max_rpm=40
         )
-
 
     @task
     def report_task(self) -> Task:
         return Task(
             config=self.tasks_config['report_task'],
             agent=self.report_generator(),
+            human_input=False,  # Disable for consistency
             context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task()],  # Gets all results including follow-up
             max_rpm=40
         )

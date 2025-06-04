@@ -30,7 +30,7 @@ app = FastAPI(
 # CREWAI_STORAGE_DIR is set further down, so we need to be careful about when this is resolved.
 # Let's define it here and resolve its path after CREWAI_STORAGE_DIR is confirmed.
 CONVERSATION_LOG_FILENAME = "human_interaction.log"
-# --- END ADDED CODE FOR CONVERSATION LOG ---
+# --- END ADDED CODE FOR CONVERSATION LOG  ---
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 

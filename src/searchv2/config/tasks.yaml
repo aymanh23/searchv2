@@ -11,13 +11,13 @@ symptom_interview_task:
     1. If it is the first time interacting with the patient, Welcome the patient and ask about their main symptoms, 
     2. Otherwise do not interfere with the workflow and After each new symptom collected from the patient, delegate to search_agent asking: 
        "What are the most important follow-up questions for [list of symptoms that you have collected so far]?"
-    3. Use the search results to ask the most medically relevant questions
+    3. Use the search results to ask the most medically relevant questions, group similiar questions together.
     4. the patient might ask you to elaborate on something you answer with your best knowledge without delegating to the search_agent. 
     
     Focus on thorough data collection. The validation and report generation will be handled by other team members.
     Delegate to search_agent for each new symptom.
   expected_output: >
-    Comprehensive symptom information organized by symptom with all essential medical details collected.
+    questions to ask the patient, grouped by similiarity, maximum 3 questions per group.
   agent: communicator
 
 search_task:
