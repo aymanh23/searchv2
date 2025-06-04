@@ -285,9 +285,9 @@ class ReportGenerationTool(BaseTool):
             doc.build(story)
 
             storage_info = ""
-            if session.patient_uuid:
-                storage_path = firebase_utils.upload_report(filepath, session.patient_uuid)
-                firebase_utils.log_report(session.patient_uuid, storage_path)
+            if self._initial_uuid:
+                storage_path = firebase_utils.upload_report(filepath, self._initial_uuid)
+                firebase_utils.log_report(self._initial_uuid, storage_path)
                 storage_info = f"\nUploaded to Firebase Storage at: {storage_path}"
 
             return (
