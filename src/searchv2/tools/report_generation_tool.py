@@ -18,6 +18,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.platypus.tableofcontents import TableOfContents
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 
+from searchv2 import firebase_utils
+
 
 class ReportGenerationTool(BaseTool):
     name: str = "Medical Report Generator"
@@ -27,12 +29,17 @@ class ReportGenerationTool(BaseTool):
         "Reports are automatically saved in the reports folder with timestamp."
     )
 
-    def _run(self, 
+    def __init__(self, patient_uuid: str = ""):
+        super().__init__()
+        self.patient_uuid = patient_uuid
+
+    def _run(self,
              patient_info: Optional[Dict[str, Any]] = None,
              chief_complaint: str = "",
              history_present_illness: str = "",
              symptoms: Dict[str, Any] = None,
              diagnosis_assessment: str = "",
+             patient_uuid: str = "",
              **kwargs) -> str:
         """
         Generate a medical report PDF
@@ -43,9 +50,12 @@ class ReportGenerationTool(BaseTool):
             history_present_illness: Detailed symptom timeline
             symptoms: Dictionary of organized symptom information
             diagnosis_assessment: Preliminary diagnostic assessment from diagnosis agent
+            patient_uuid: Unique identifier for the patient
             **kwargs: Additional information for the report
         """
         try:
+            if not patient_uuid:
+                patient_uuid = self.patient_uuid
             # Create reports directory if it doesn't exist
             reports_dir = Path("reports")
             reports_dir.mkdir(exist_ok=True)
@@ -266,8 +276,17 @@ class ReportGenerationTool(BaseTool):
             
             # Build PDF
             doc.build(story)
-            
-            return f"Medical report successfully generated and saved as: {filename}\nLocation: {filepath.absolute()}"
+
+            storage_info = ""
+            if patient_uuid:
+                storage_path = firebase_utils.upload_report(filepath, patient_uuid)
+                firebase_utils.log_report(patient_uuid, storage_path)
+                storage_info = f"\nUploaded to Firebase Storage at: {storage_path}"
+
+            return (
+                f"Medical report successfully generated and saved as: {filename}\n"
+                f"Location: {filepath.absolute()}" + storage_info
+            )
             
         except Exception as e:
             return f"Error generating medical report: {str(e)}"
