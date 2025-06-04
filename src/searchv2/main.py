@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import uvicorn
-from searchv2.tools.human_input_tool import HumanInputTool, MessageBroker
+from searchv2.session import SessionManager
 
 load_dotenv()
 
@@ -35,9 +35,6 @@ CONVERSATION_LOG_FILENAME = "human_interaction.log"
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
-# Global variable to store the crew process
-crew_process = None
-crew_thread = None
 
 class ChatMessage(BaseModel):
     message: str
@@ -100,12 +97,10 @@ def save_conversation_state(log_file, state):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(json.dumps(state) + '\n')
 
-def run_crew_process():
+def run_crew_process(session_id: str):
     """
     Run the medical symptom interview crew in a separate thread
     """
-    global crew_process
-
     # Set custom storage path for CrewAI memory to avoid Windows path length issues
     project_root = Path(__file__).resolve().parent.parent # Assuming main.py is in src/searchv2
     storage_dir_path = project_root / "crewai_storage"
@@ -115,7 +110,9 @@ def run_crew_process():
     
     # --- BEGIN ADDED CODE FOR CONVERSATION LOG ---
     # Initialize/clear the conversation log for this run
-    conversation_log_file = storage_dir_path / CONVERSATION_LOG_FILENAME
+    conversation_log_file = storage_dir_path / f"human_interaction_{session_id}.log"
+    session = SessionManager.get_session(session_id)
+    session.log_file = conversation_log_file
     if conversation_log_file.exists():
         conversation_log_file.unlink()
     print(f"Conversation log for this run will be at: {conversation_log_file.absolute()}")
@@ -134,87 +131,85 @@ def run_crew_process():
     base_delay = 15  # Start with 15 seconds for VertexAI
     max_delay = 120  # Maximum delay of 120 seconds
     jitter = 0.2     # Increased jitter to 20%
-    
-    for attempt in range(max_retries + 1):
-        try:
-            # Apply rate limiting before making the request
-            rate_limiter.wait_if_needed()
-            
-            print(f"Creating crew... (attempt {attempt + 1}/{max_retries + 1})")
-            crew = MedicalSearch().crew()
-            crew_process = crew  # Store the crew process globally
-            
-            # If we have conversation history, restore it
-            if conversation_history:
-                print("Restoring previous conversation state...")
-                for entry in conversation_history:
-                    save_conversation_state(conversation_log_file, entry)
-            
-            print("Starting crew kickoff...")
-            result = crew.kickoff()
-            
-            # Save the final state
-            save_conversation_state(conversation_log_file, {
-                "timestamp": datetime.now().isoformat(),
-                "type": "completion",
-                "result": result
-            })
-            
-            print("\n" + "="*50)
-            print("SYMPTOM INTERVIEW COMPLETE")
-            print("="*50)
-            print(result)
-            return result
-            
-        except Exception as e:
-            error_message = str(e)
-            print(f"An error occurred while running the crew: {e}")
-            
-            # Save error state to conversation log
-            save_conversation_state(conversation_log_file, {
-                "timestamp": datetime.now().isoformat(),
-                "type": "error",
-                "error": error_message
-            })
-            
-            if is_vertex_ai_overload(error_message):
-                if attempt < max_retries:
-                    delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
-                    print(f"VertexAI model is overloaded. Retrying in {delay:.1f} seconds...")
-                    time.sleep(delay)
-                    continue
-                else:
-                    print("Max retries reached. The VertexAI model is experiencing high load.")
-                    print("Please try again in a few minutes when the load is lower.")
-                    break
-            
-            elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
-                if attempt < max_retries:
-                    delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
-                    print(f"API rate limit detected. Retrying in {delay:.1f} seconds...")
-                    time.sleep(delay)
-                    continue
-                else:
-                    print("Max retries reached. API rate limit exceeded.")
-                    print("Please try again later when the rate limit resets.")
-                    break
-            
-            print("Full traceback:")
-            traceback.print_exc()
-            break  # Exit on non-retryable errors
+
+    try:
+        for attempt in range(max_retries + 1):
+            try:
+                # Apply rate limiting before making the request
+                rate_limiter.wait_if_needed()
+
+                print(f"Creating crew... (attempt {attempt + 1}/{max_retries + 1})")
+                crew = MedicalSearch(session.broker, conversation_log_file).crew()
+                session.crew_process = crew
+
+                if conversation_history:
+                    print("Restoring previous conversation state...")
+                    for entry in conversation_history:
+                        save_conversation_state(conversation_log_file, entry)
+
+                print("Starting crew kickoff...")
+                result = crew.kickoff()
+
+                save_conversation_state(conversation_log_file, {
+                    "timestamp": datetime.now().isoformat(),
+                    "type": "completion",
+                    "result": result
+                })
+
+                print("\n" + "="*50)
+                print("SYMPTOM INTERVIEW COMPLETE")
+                print("="*50)
+                print(result)
+                return result
+
+            except Exception as e:
+                error_message = str(e)
+                print(f"An error occurred while running the crew: {e}")
+
+                save_conversation_state(conversation_log_file, {
+                    "timestamp": datetime.now().isoformat(),
+                    "type": "error",
+                    "error": error_message
+                })
+
+                if is_vertex_ai_overload(error_message):
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
+                        print(f"VertexAI model is overloaded. Retrying in {delay:.1f} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print("Max retries reached. The VertexAI model is experiencing high load.")
+                        print("Please try again in a few minutes when the load is lower.")
+                        break
+
+                elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** attempt) * (1 + jitter * (2 * random.random() - 1)), max_delay)
+                        print(f"API rate limit detected. Retrying in {delay:.1f} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        print("Max retries reached. API rate limit exceeded.")
+                        print("Please try again later when the rate limit resets.")
+                        break
+
+                print("Full traceback:")
+                traceback.print_exc()
+                break  # Exit on non-retryable errors
+    finally:
+        SessionManager.cleanup_session(session_id)
 
 @app.get("/")
 async def read_root():
     return {"message": "CrewAI API is running"}
 
 @app.get("/crew/kickoff")
-async def run():
+async def run(session_id: str):
     """
     Run the medical symptom interview crew with rate limiting and enhanced retry logic.
     Returns the initial greeting message that will be asked to the user.
     """
-    global crew_thread
-
     # Return the initial greeting message
     initial_greeting = (
         "Hello! I'm your MedicalAI Assistant.\n"
@@ -223,24 +218,26 @@ async def run():
         "To begin, could you please tell me what symptoms you're experiencing today?"
     )
 
-    # Start the crew process in a separate thread if not already running
-    if crew_thread is None or not crew_thread.is_alive():
-        crew_thread = Thread(target=run_crew_process)
-        crew_thread.daemon = True  # Make the thread daemon so it exits when the main thread exits
-        crew_thread.start()
-    
+    session = SessionManager.get_session(session_id)
+
+    if session.crew_thread is None or not session.crew_thread.is_alive():
+        session.crew_thread = Thread(target=run_crew_process, args=(session_id,))
+        session.crew_thread.daemon = True
+        session.crew_thread.start()
+
     return {"question": initial_greeting}
 
 @app.post("/chat")
-async def chat(message: ChatMessage):
+async def chat(session_id: str, message: ChatMessage):
     """
     Handle chat messages from the user and return the next question
     """
-    if crew_thread is None or not crew_thread.is_alive():
+    session = SessionManager.get_session(session_id)
+    if session.crew_thread is None or not session.crew_thread.is_alive():
         raise HTTPException(status_code=400, detail="Crew process not started. Please call /crew/kickoff first")
 
     # Add the message to the HumanInputTool queue
-    HumanInputTool.add_user_message(message.message)
+    session.broker.add_message(message.message)
 
     async def wait_for_response():
         max_wait = 300  # 5 minutes
@@ -248,7 +245,7 @@ async def chat(message: ChatMessage):
         attempts = int(max_wait / wait_interval)
 
         for _ in range(attempts):
-            current_question = HumanInputTool.get_current_question()
+            current_question = session.broker.get_question()
             if current_question:
                 return {"question": current_question}
             await asyncio.sleep(wait_interval)

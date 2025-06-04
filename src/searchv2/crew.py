@@ -2,7 +2,7 @@ from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task, tool
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from typing import List
-from searchv2.tools.human_input_tool import HumanInputTool
+from searchv2.tools.human_input_tool import HumanInputTool, MessageBroker
 from searchv2.tools.report_generation_tool import ReportGenerationTool
 from searchv2.tools.serper_tool import SerperSearchTool
 from searchv2.tools.trusted_medical_search_tool import TrustedMedicalSearchTool
@@ -17,6 +17,10 @@ from pathlib import Path
 @CrewBase
 class MedicalSearch():
     """MedicalSearch crew"""
+
+    def __init__(self, broker: MessageBroker, conversation_log: Path):
+        self._broker = broker
+        self._conversation_log = conversation_log
 
     @tool
     def WebsiteSearchTool(self):
@@ -50,9 +54,9 @@ class MedicalSearch():
     def TrustedMedicalSearchTool(self):
         return TrustedMedicalSearchTool()
 
-    @tool  
+    @tool
     def HumanInputTool(self):
-        return HumanInputTool()
+        return HumanInputTool(broker=self._broker, conversation_log=self._conversation_log)
 
     @tool
     def ReportGenerationTool(self):
@@ -157,11 +161,6 @@ class MedicalSearch():
     @crew
     def crew(self) -> Crew:
         """Creates the MedicalSearch crew"""
-        # Set up conversation log for HumanInputTool
-        storage_dir = Path(os.environ.get("CREWAI_STORAGE_DIR", "crewai_storage"))
-        conversation_log = storage_dir / "human_interaction.log"
-        HumanInputTool.set_conversation_log(conversation_log)
-
         return Crew(
             agents=[self.communicator(), self.search_agent(), self.report_generator(), self.symptom_validator()],
             tasks=[
