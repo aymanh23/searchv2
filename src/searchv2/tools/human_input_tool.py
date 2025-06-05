@@ -15,13 +15,21 @@ class MessageBroker:
 
     def add_message(self, message: str):
         self.messages.append(message)
+        # Clear the current question immediately when a user responds so
+        # clients don't receive the previous question again while the crew
+        # processes the new message.
+        self.current_question = None
         self.new_message_event.set()
 
     def get_message(self) -> str:
         while not self.messages:
             self.new_message_event.wait()
             self.new_message_event.clear()
-        return self.messages.pop(0)
+        # Clear the current question when a response is received so
+        # mobile clients don't keep seeing the old question.
+        message = self.messages.pop(0)
+        self.current_question = None
+        return message
 
     def set_question(self, question: str):
         self.current_question = question
