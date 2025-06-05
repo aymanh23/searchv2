@@ -1,43 +1,38 @@
-# This file is kept for potential future task configurations
-# Currently, the main task is defined directly in crew.py as symptom_interview_task
-
-# Future task configurations can be added here if needed
-
-# Main task configuration - actual implementation is in crew.py
 symptom_interview_task:
   description: >
     Conduct a comprehensive symptom interview following this process:
-    
-    1. If it is the first time interacting with the patient, Welcome the patient and ask about their main symptoms, 
-    2. Otherwise do not interfere with the workflow and After each new symptom collected from the patient, delegate to search_agent asking: 
-       "What are the most important follow-up questions for [list of symptoms that you have collected so far]?"
-    3. Use the search results to ask the most medically relevant questions, group similiar questions together.
-    4. the patient might ask you to elaborate on something you answer with your best knowledge without delegating to the search_agent. 
-    
+
+    1. If it is the first time interacting with the patient, Welcome the patient and ask about their main symptoms. 
+    2. Otherwise, do not interfere with the workflow. After each new symptom collected from the patient, delegate to search_agent asking:
+       "What are the top 2–3 most important follow-up questions for the newly reported symptom: [symptom]?"
+    3. Use the search results to ask the most medically relevant questions, group similar questions together.
+    4. If the search_agent fails to respond or returns empty, retry once. 
+
     Focus on thorough data collection. The validation and report generation will be handled by other team members.
-    Delegate to search_agent for each new symptom.
+    Delegate only the newly reported symptom to search_agent each time (avoid sending the full list).
   expected_output: >
-    questions to ask the patient, grouped by similiarity, maximum 3 questions per group.
+    Questions to ask the patient, grouped by similarity, maximum 3 questions per group.
   agent: communicator
 
 search_task:
   description: >
     When asked about a specific symptom, use the TrustedMedicalSearchTool to research it from trusted medical sources and provide:
-    1. Brief medical context about the symptom from authoritative sources (Mayo Clinic, CDC, NHS, etc.)
-    2. Specific follow-up questions that help characterize the symptom medically
-    3. Include any red flag symptoms or concerning features to watch for
+    1. A very brief summary (1 sentence max) of the medical context from authoritative sources (Mayo Clinic, CDC, NHS, etc.)
+    2. Top 2–3 concise follow-up questions to help characterize the symptom medically.
+    3. If no relevant data is found or uncertainty exists, return "NO_CLINICAL_INSIGHT_FOUND".
+    4. Include any red flag symptoms or concerning features to watch for.
     
-    Always use the TrustedMedicalSearchTool first to get comprehensive, evidence-based information from trusted medical websites.
+    Always use the TrustedMedicalSearchTool first to get short, evidence-based information.
   expected_output: >
-    Evidence-based medical information about the symptom followed by targeted medical questions, 
-    with brief explanation of why each question is clinically important.
+    A short evidence-based context followed by 2–3 concise medical questions, 
+    each with a brief one-line explanation. Limit total output to essential items only.
   agent: search_agent
 
 validation_task:
   description: >
     Review the collected symptom information from the interview and validate completeness.
     If anything critical is missing, provide specific feedback on what's needed and delegate back to the communicator.
-    If the patient has answers such as ` i dont know ` for some aspect or there is uncertainty, you accept it and note it.
+    If the patient has answers such as `i don't know` for some aspect or there is uncertainty, you accept it and note it.
     If complete and consistent, delegate to diagnosis_agent.
   expected_output: >
     Validation result: either "APPROVED - All essential information collected" or 
@@ -47,19 +42,19 @@ validation_task:
 diagnosis_task:
   description: >
     Analyze all collected and validated symptom information to create preliminary diagnostic impressions.
-    
+
     Process:
-    1. Review all symptom information from the interview and validation
-    2. Delegate to search_agent to research possible diagnoses based on symptom patterns
-    3. Ask search_agent to find information about differential diagnoses for the symptom cluster
+    1. Review all symptom information from the interview and validation.
+    2. Delegate to search_agent to research only the top 3 most likely diagnoses based on symptom patterns, within a compact and concise 2-minute reasoning scope.
+    3. Ask search_agent to find differential diagnoses for the most dominant symptom cluster.
     4. Create a preliminary diagnostic assessment including:
        - Most likely diagnostic considerations (primary differential diagnoses)
        - Supporting evidence from symptoms and clinical presentation
        - Red flags or concerning features that require immediate attention
        - Additional clinical information that would help confirm or rule out diagnoses
        - Recommended diagnostic tests or evaluations
-    
-    Focus on creating evidence-based diagnostic guidance that helps doctors prioritize their clinical assessment.
+
+    Focus on creating concise and focused diagnostic guidance to help doctors prioritize.
   expected_output: >
     Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale
@@ -72,7 +67,7 @@ diagnosis_task:
 report_task:
   description: >
     Generate a professional medical report using the collected and validated symptom information and diagnostic assessment.
-    
+
     Create a PDF report with these sections:
     1. Chief Complaint (main symptoms)
     2. History of Present Illness (detailed timeline)
@@ -84,7 +79,7 @@ report_task:
        - Recommended diagnostic workup and next steps
     5. Clinical Summary (key findings)
     6. Recommendations for Further Evaluation
-    
+
     Save the report to the reports folder with timestamp and symptom description in filename.
   expected_output: >
     Professional PDF medical report saved successfully with confirmation of filename and location, 

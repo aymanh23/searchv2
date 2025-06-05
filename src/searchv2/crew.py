@@ -11,49 +11,45 @@ import os
 from pathlib import Path
 import logging
 import time
+from functools import wraps
+import yaml
 
 logger = logging.getLogger(__name__)
 
+def retry_on_empty(max_retries: int = 3, delay: float = 1.0,
+                  fallback: str = "No response, please try again later."):
+    """Decorator to retry on empty responses."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            for attempt in range(1, max_retries + 1):
+                result = func(self, *args, **kwargs)
+                if result is not None and str(result).strip() != "":
+                    return result
+                logger.warning(
+                    "Empty response from agent '%s' (attempt %s/%s)",
+                    getattr(self, "name", "unknown"),
+                    attempt,
+                    max_retries,
+                )
+                time.sleep(delay)
 
-def _patch_agent_run_with_retry(max_retries: int = 3, delay: float = 1.0,
-                                fallback: str = "No response, please try again later."):
-    """Wrap Agent.run to retry on empty responses."""
-    if getattr(Agent, "_run_wrapped", False):
-        return
-
-    original_run = Agent.run
-
-    def run_with_retry(self, *args, **kwargs):
-        for attempt in range(1, max_retries + 1):
-            result = original_run(self, *args, **kwargs)
-            if result is not None and str(result).strip() != "":
-                return result
-            logger.warning(
-                "Empty response from agent '%s' (attempt %s/%s)",
+            logger.error(
+                "Agent '%s' returned no response after %s attempts",
                 getattr(self, "name", "unknown"),
-                attempt,
                 max_retries,
             )
-            time.sleep(delay)
 
-        logger.error(
-            "Agent '%s' returned no response after %s attempts",
-            getattr(self, "name", "unknown"),
-            max_retries,
-        )
+            name = getattr(self, "name", "").lower()
+            if "communicator" in name or "interviewer" in name:
+                return "I'm having trouble responding, please wait a moment"
+            return fallback
+        return wrapper
+    return decorator
 
-        # Provide a clearer fallback for the communicator so that the user
-        # is informed that the system is still working on a response.
-        name = getattr(self, "name", "").lower()
-        if "communicator" in name or "interviewer" in name:
-            return "I'm having trouble responding, please wait a moment"
-        return fallback
+# Patch the Agent class with the retry decorator
+Agent.execute_task = retry_on_empty()(Agent.execute_task)
 
-    Agent.run = run_with_retry
-    Agent._run_wrapped = True
-
-
-_patch_agent_run_with_retry()
 # If you want to run a snippet of code before or after the crew starts,
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
@@ -64,6 +60,11 @@ class MedicalSearch():
     """MedicalSearch crew"""
 
     def __init__(self, broker: MessageBroker, conversation_log: Path, patient_uuid: str = ""):
+        config_dir = Path(__file__).parent / "config"
+        with open(config_dir / "agents.yaml", "r") as f:
+            self.agents_config = yaml.safe_load(f)
+        with open(config_dir / "tasks.yaml", "r") as f:
+            self.tasks_config = yaml.safe_load(f)
         self._broker = broker
         self._conversation_log = conversation_log
         self._patient_uuid = patient_uuid
