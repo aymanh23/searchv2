@@ -15,7 +15,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def _patch_agent_run_with_retry(max_retries: int = 2, delay: float = 1.0,
+def _patch_agent_run_with_retry(max_retries: int = 3, delay: float = 1.0,
                                 fallback: str = "No response, please try again later."):
     """Wrap Agent.run to retry on empty responses."""
     if getattr(Agent, "_run_wrapped", False):
@@ -41,6 +41,12 @@ def _patch_agent_run_with_retry(max_retries: int = 2, delay: float = 1.0,
             getattr(self, "name", "unknown"),
             max_retries,
         )
+
+        # Provide a clearer fallback for the communicator so that the user
+        # is informed that the system is still working on a response.
+        name = getattr(self, "name", "").lower()
+        if "communicator" in name or "interviewer" in name:
+            return "I'm having trouble responding, please wait a moment"
         return fallback
 
     Agent.run = run_with_retry
