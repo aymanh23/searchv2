@@ -15,6 +15,10 @@ class MessageBroker:
 
     def add_message(self, message: str):
         self.messages.append(message)
+        # Clear the current question immediately when a user responds so
+        # clients don't receive the previous question again while the crew
+        # processes the new message.
+        self.current_question = None
         self.new_message_event.set()
 
     def get_message(self) -> str:
