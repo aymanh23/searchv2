@@ -60,7 +60,6 @@ diagnosis_task:
        - Recommended diagnostic tests or evaluations
     
     Focus on creating evidence-based diagnostic guidance that helps doctors prioritize their clinical assessment.
-    When you are done, delegate to report_generator.
   expected_output: >
     Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale
