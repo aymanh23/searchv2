@@ -36,4 +36,5 @@ def log_report(patient_uuid: str, storage_path: str) -> None:
     doc_ref.set({
         "path": storage_path,
         "timestamp": firestore.SERVER_TIMESTAMP,
+        "reviewed": False,
     })
