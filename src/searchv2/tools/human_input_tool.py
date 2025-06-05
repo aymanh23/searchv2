@@ -21,10 +21,21 @@ class MessageBroker:
         self.current_question = None
         self.new_message_event.set()
 
-    def get_message(self) -> str:
+    def get_message(self, timeout: Optional[float] = None) -> str:
+        start_time = datetime.now()
         while not self.messages:
-            self.new_message_event.wait()
+            remaining = None
+            if timeout is not None:
+                elapsed = (datetime.now() - start_time).total_seconds()
+                remaining = max(timeout - elapsed, 0)
+                if remaining == 0 and not self.messages:
+                    return "NO_RESPONSE"
+
+            triggered = self.new_message_event.wait(remaining)
             self.new_message_event.clear()
+            if not triggered and timeout is not None:
+                if not self.messages:
+                    return "NO_RESPONSE"
         # Clear the current question when a response is received so
         # mobile clients don't keep seeing the old question.
         message = self.messages.pop(0)
