@@ -23,6 +23,50 @@ class MedicalSearch():
         self._conversation_log = conversation_log
         self._patient_uuid = patient_uuid
 
+        # Instantiate agents once and reuse them
+        self._communicator_agent = self.communicator()
+        self._search_agent = self.search_agent()
+        self._diagnosis_agent = self.diagnosis_agent()
+        self._report_generator_agent = self.report_generator()
+        self._symptom_validator_agent = self.symptom_validator()
+
+        # Instantiate tasks once and reuse them
+        self._symptom_interview_task = Task(
+            config=self.tasks_config['symptom_interview_task'],
+            agent=self._communicator_agent,
+            human_input=False,
+            max_rpm=40,
+            context=[]
+        )
+
+        self._validation_task = Task(
+            config=self.tasks_config['validation_task'],
+            agent=self._symptom_validator_agent,
+            human_input=False,
+            context=[self._symptom_interview_task],
+            max_rpm=40
+        )
+
+        self._diagnosis_task = Task(
+            config=self.tasks_config['diagnosis_task'],
+            agent=self._diagnosis_agent,
+            human_input=False,
+            context=[self._symptom_interview_task, self._validation_task],
+            max_rpm=40
+        )
+
+        self._report_task = Task(
+            config=self.tasks_config['report_task'],
+            agent=self._report_generator_agent,
+            human_input=False,
+            context=[
+                self._symptom_interview_task,
+                self._validation_task,
+                self._diagnosis_task,
+            ],
+            max_rpm=40
+        )
+
     @tool
     def WebsiteSearchTool(self):
         from crewai_tools import WebsiteSearchTool
@@ -121,57 +165,39 @@ class MedicalSearch():
 
     @task
     def symptom_interview_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['symptom_interview_task'],
-            agent=self.communicator(),
-            human_input=False,  # Disable CrewAI's built-in feedback prompt
-            max_rpm=40,
-            context=[]  # Initial task has no context
-        )
+        return self._symptom_interview_task
 
     @task
     def validation_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['validation_task'],
-            agent=self.symptom_validator(),
-            human_input=False,  # Disable for consistency
-            context=[self.symptom_interview_task()],  # Gets interview results as input
-            max_rpm=40
-        )
+        return self._validation_task
 
     @task
     def diagnosis_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['diagnosis_task'],
-            agent=self.diagnosis_agent(),
-            human_input=False,  # Disable for consistency
-            context=[self.symptom_interview_task(), self.validation_task()],  # Gets both interview and validation results
-            max_rpm=40
-        )
+        return self._diagnosis_task
 
     @task
     def report_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['report_task'],
-            agent=self.report_generator(),
-            human_input=False,  # Disable for consistency
-            context=[self.symptom_interview_task(), self.validation_task(), self.diagnosis_task()],  # Gets all results including follow-up
-            max_rpm=40
-        )
+        return self._report_task
 
     @crew
     def crew(self) -> Crew:
         """Creates the MedicalSearch crew"""
         return Crew(
-            agents=[self.communicator(), self.search_agent(), self.report_generator(), self.symptom_validator()],
+            agents=[
+                self._communicator_agent,
+                self._search_agent,
+                self._report_generator_agent,
+                self._symptom_validator_agent,
+            ],
             tasks=[
-                self.symptom_interview_task(),  # Initial interview
-                self.validation_task(),         # Validate initial information
-                self.diagnosis_task(),          # Create preliminary diagnosis
-                self.report_task()              # Generate final report
+                self._symptom_interview_task,  # Initial interview
+                self._validation_task,         # Validate initial information
+                self._diagnosis_task,          # Create preliminary diagnosis
+                self._report_task,             # Generate final report
             ],
             process=Process.sequential,  # Sequential execution ensures all tasks run
             verbose=True,
             memory=False,
             max_rpm=40
         )
+
