@@ -21,7 +21,11 @@ class MessageBroker:
         while not self.messages:
             self.new_message_event.wait()
             self.new_message_event.clear()
-        return self.messages.pop(0)
+        # Clear the current question when a response is received so
+        # mobile clients don't keep seeing the old question.
+        message = self.messages.pop(0)
+        self.current_question = None
+        return message
 
     def set_question(self, question: str):
         self.current_question = question
