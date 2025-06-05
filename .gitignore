@@ -3,3 +3,23 @@ __pycache__/
 .DS_Store
 .env
 reports/
+
+# Service account and credentials
+**/firebase-service-account.json
+**/service-account*.json
+**/credentials*.json
+**/client_secret*.json
+
+# Database files
+*.sqlite3
+*.db
+
+# Logs
+*.log
+logs/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo

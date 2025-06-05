@@ -6,12 +6,14 @@ symptom_interview_task:
     2. Otherwise, do not interfere with the workflow. After each new symptom collected from the patient, delegate to search_agent asking:
        "What are the top 2–3 most important follow-up questions for the newly reported symptom: [symptom]?"
     3. Use the search results to ask the most medically relevant questions, group similar questions together.
-    4. If the search_agent fails to respond or returns empty, retry once. 
+    4. your search query should be medically appropriate, do not use the patient input directly.
+    5. If the search_agent fails to respond or returns empty, retry once. 
+    6. never return empty or null or None or [] or {} or any other empty value.
 
     Focus on thorough data collection. The validation and report generation will be handled by other team members.
     Delegate only the newly reported symptom to search_agent each time (avoid sending the full list).
   expected_output: >
-    Questions to ask the patient, grouped by similarity, maximum 3 questions per group.
+    {{Questions to ask the patient, grouped by similarity, maximum 3 questions per group.}}
   agent: communicator
 
 search_task:
@@ -21,11 +23,13 @@ search_task:
     2. Top 2–3 concise follow-up questions to help characterize the symptom medically.
     3. If no relevant data is found or uncertainty exists, return "NO_CLINICAL_INSIGHT_FOUND".
     4. Include any red flag symptoms or concerning features to watch for.
+    5. never return empty or null or None or [] or {} or any other empty value.
+    6. never ask the same question twice, or a similar question to what has already been asked.
     
     Always use the TrustedMedicalSearchTool first to get short, evidence-based information.
   expected_output: >
-    A short evidence-based context followed by 2–3 concise medical questions, 
-    each with a brief one-line explanation. Limit total output to essential items only.
+    {{A short evidence-based context followed by 2–3 concise medical questions, 
+    each with a brief one-line explanation. Limit total output to essential items only.}}
   agent: search_agent
 
 validation_task:
@@ -34,9 +38,10 @@ validation_task:
     If anything critical is missing, provide specific feedback on what's needed and delegate back to the communicator.
     If the patient has answers such as `i don't know` for some aspect or there is uncertainty, you accept it and note it.
     If complete and consistent, delegate to diagnosis_agent.
+    never return empty or null or None or [] or {} or any other empty value.
   expected_output: >
-    Validation result: either "APPROVED - All essential information collected" or 
-    "INCOMPLETE - Missing: [specific details needed for each symptom]"
+    {{Validation result: either "APPROVED - All essential information collected" or 
+    "INCOMPLETE - Missing: [specific details needed for each symptom]"}}
   agent: symptom_validator
 
 diagnosis_task:
@@ -53,15 +58,17 @@ diagnosis_task:
        - Red flags or concerning features that require immediate attention
        - Additional clinical information that would help confirm or rule out diagnoses
        - Recommended diagnostic tests or evaluations
+    5. never return empty or null or None or [] or {} or any other empty value.
 
     Focus on creating concise and focused diagnostic guidance to help doctors prioritize.
   expected_output: >
-    Comprehensive preliminary diagnostic assessment including:
+    {{Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale
     - Clinical reasoning based on symptom patterns
     - Red flags requiring immediate medical attention
     - Recommended next steps for diagnostic workup
     - Evidence-based clinical guidance for the treating physician
+    }}
   agent: diagnosis_agent
 
 report_task:
@@ -79,9 +86,10 @@ report_task:
        - Recommended diagnostic workup and next steps
     5. Clinical Summary (key findings)
     6. Recommendations for Further Evaluation
+    7. never return empty or null or None or [] or {} or any other empty value.
 
     Save the report to the reports folder with timestamp and symptom description in filename.
   expected_output: >
-    Professional PDF medical report saved successfully with confirmation of filename and location, 
-    including comprehensive diagnostic assessment to assist physician decision-making.
+    {{Professional PDF medical report saved successfully with confirmation of filename and location, 
+    including comprehensive diagnostic assessment to assist physician decision-making.}}
   agent: report_generator

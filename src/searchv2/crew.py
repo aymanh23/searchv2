@@ -50,11 +50,6 @@ def retry_on_empty(max_retries: int = 3, delay: float = 1.0,
 # Patch the Agent class with the retry decorator
 Agent.execute_task = retry_on_empty()(Agent.execute_task)
 
-# If you want to run a snippet of code before or after the crew starts,
-# you can use the @before_kickoff and @after_kickoff decorators
-# https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
-
-
 @CrewBase
 class MedicalSearch():
     """MedicalSearch crew"""
@@ -69,12 +64,17 @@ class MedicalSearch():
         self._conversation_log = conversation_log
         self._patient_uuid = patient_uuid
 
-        # Instantiate agents once and reuse them
-        self._communicator_agent = self.communicator()
+        # Initialize agents in correct dependency order
+        # First initialize agents that don't depend on others
         self._search_agent = self.search_agent()
-        self._diagnosis_agent = self.diagnosis_agent()
         self._report_generator_agent = self.report_generator()
+        
+        # Then initialize agents that depend on the independent ones
         self._symptom_validator_agent = self.symptom_validator()
+        self._diagnosis_agent = self.diagnosis_agent()
+        
+        # Finally initialize the communicator that depends on others
+        self._communicator_agent = self.communicator()
 
         # Instantiate tasks once and reuse them
         self._symptom_interview_task = Task(
@@ -119,7 +119,6 @@ class MedicalSearch():
         return WebsiteSearchTool(
             config=dict(
                 llm=dict(
-                    # Back to Gemini with standard configuration
                     provider="google",
                     config=dict(
                         model="gemini-1.5-pro",
@@ -159,8 +158,9 @@ class MedicalSearch():
             config=self.agents_config['communicator'],
             tools=[self.HumanInputTool()],
             verbose=True,
-            allow_delegation=True,  # Enable delegation
-            llm="gemini/gemini-2.0-flash-lite",
+            allow_delegation=True,
+            allowed_agents=["Researcher", "Validator"],  # Match exact role names from agents.yaml
+            llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=50
         )
@@ -172,20 +172,23 @@ class MedicalSearch():
             tools=[self.TrustedMedicalSearchTool(), self.SerperSearchTool(), self.WebsiteSearchTool()],
             verbose=True,
             allow_delegation=False,  # Focused specialist
-            llm="gemini/gemini-2.0-flash-lite",
+            llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=40               
         )
+
     @agent
     def diagnosis_agent(self) -> Agent:
         return Agent(
             config=self.agents_config['diagnosis_agent'],
             verbose=True,
-            allow_delegation=True,  # Can delegate to search_agent for research
-            llm="gemini/gemini-2.0-flash-lite",
+            allow_delegation=True,
+            allowed_agents=["Researcher"],  # Match exact role name from agents.yaml
+            llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=40       
         )
+
     @agent  
     def report_generator(self) -> Agent:
         return Agent(
@@ -193,7 +196,7 @@ class MedicalSearch():
             tools=[self.ReportGenerationTool()],
             verbose=True,
             allow_delegation=False,  # Focused specialist
-            llm="gemini/gemini-2.0-flash-lite",
+            llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=40
         )
@@ -203,8 +206,9 @@ class MedicalSearch():
         return Agent(
             config=self.agents_config['symptom_validator'],
             verbose=True,
-            allow_delegation=True,  # Can delegate back to communicator
-            llm="gemini/gemini-2.0-flash-lite",
+            allow_delegation=True,
+            allowed_agents=["Interviewer"],  # Match exact role name from agents.yaml
+            llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=40
         )
@@ -231,6 +235,7 @@ class MedicalSearch():
         return Crew(
             agents=[
                 self._communicator_agent,
+                self._diagnosis_agent,
                 self._search_agent,
                 self._report_generator_agent,
                 self._symptom_validator_agent,
