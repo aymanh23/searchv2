@@ -183,7 +183,7 @@ class MedicalSearch():
             config=self.agents_config['diagnosis_agent'],
             verbose=True,
             allow_delegation=True,
-            allowed_agents=["Researcher"],  # Match exact role name from agents.yaml
+            allowed_agents=["Researcher"],  # Only allow delegation to Researcher, not Interviewer
             llm="gemini/gemini-1.5-pro",
             memory=False,
             max_rpm=40       

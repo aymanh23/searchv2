@@ -8,8 +8,9 @@ collected during patient interviews. Reports are saved in the reports folder.
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Type
 from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -22,6 +23,15 @@ from searchv2 import firebase_utils
 from searchv2.session import SessionManager
 
 
+class ReportGenerationToolInput(BaseModel):
+    """Input schema for ReportGenerationTool."""
+    patient_info: Optional[Dict[str, Any]] = Field(None, description="Patient demographics and information")
+    chief_complaint: str = Field("", description="Main symptoms reported by the patient")
+    history_present_illness: str = Field("", description="Detailed symptom timeline and progression")
+    symptoms: Optional[Dict[str, Any]] = Field(None, description="Dictionary of organized symptom information")
+    diagnosis_assessment: str = Field("", description="Preliminary diagnostic assessment from diagnosis agent")
+
+
 class ReportGenerationTool(BaseTool):
     name: str = "Medical Report Generator"
     description: str = (
@@ -29,11 +39,93 @@ class ReportGenerationTool(BaseTool):
         "Input should include patient symptoms, timeline, severity, and other clinical details. "
         "Reports are automatically saved in the reports folder with timestamp."
     )
+    args_schema: Type[BaseModel] = ReportGenerationToolInput
 
     def __init__(self, patient_uuid: str = ""):
         super().__init__()
         # Store the UUID to help find the correct session later
         self._initial_uuid = patient_uuid
+    
+    def _format_diagnosis_assessment(self, diagnosis_text: str, styles) -> list:
+        """Format diagnosis assessment text for better readability"""
+        formatted_elements = []
+        
+        # Clean up the text and split into sections
+        text = diagnosis_text.strip()
+        
+        # Split by common section markers
+        sections = []
+        current_section = ""
+        
+        # Split by asterisks (common LLM formatting)
+        parts = text.split('**')
+        for i, part in enumerate(parts):
+            if i % 2 == 1:  # This is a header (between **)
+                if current_section.strip():
+                    sections.append(current_section.strip())
+                    current_section = ""
+                # Add the header
+                formatted_elements.append(Paragraph(f"<b>{part.strip()}</b>", styles['Heading4']))
+            else:
+                current_section += part
+        
+        # Add the last section
+        if current_section.strip():
+            sections.append(current_section.strip())
+        
+        # If no ** sections found, try to split by numbered points
+        if len(sections) <= 1:
+            sections = []
+            # Split by numbered points (1., 2., 3., etc.)
+            import re
+            numbered_parts = re.split(r'(\d+\.)', text)
+            current_text = ""
+            
+            for part in numbered_parts:
+                if re.match(r'\d+\.', part):  # This is a number
+                    if current_text.strip():
+                        sections.append(current_text.strip())
+                        current_text = ""
+                    current_text = part + " "
+                else:
+                    current_text += part
+            
+            if current_text.strip():
+                sections.append(current_text.strip())
+        
+        # If still no clear sections, split by sentences for better readability
+        if len(sections) <= 1:
+            sentences = text.split('. ')
+            sections = []
+            current_paragraph = ""
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if sentence:
+                    if len(current_paragraph) + len(sentence) > 200:  # Start new paragraph
+                        if current_paragraph:
+                            sections.append(current_paragraph.strip() + '.')
+                        current_paragraph = sentence
+                    else:
+                        if current_paragraph:
+                            current_paragraph += ". " + sentence
+                        else:
+                            current_paragraph = sentence
+            
+            if current_paragraph:
+                sections.append(current_paragraph.strip())
+        
+        # Format each section as a paragraph with proper spacing
+        for section in sections:
+            if section.strip():
+                # Add bullet point if it doesn't start with a number
+                if not re.match(r'^\d+\.', section.strip()):
+                    formatted_elements.append(Paragraph(f"• {section.strip()}", styles['Normal']))
+                else:
+                    formatted_elements.append(Paragraph(section.strip(), styles['Normal']))
+                formatted_elements.append(Spacer(1, 6))  # Add small space between sections
+        
+        return formatted_elements
 
     def _run(self,
              patient_info: Optional[Dict[str, Any]] = None,
@@ -211,7 +303,9 @@ class ReportGenerationTool(BaseTool):
             # Preliminary Diagnostic Assessment
             story.append(Paragraph("5. PRELIMINARY DIAGNOSTIC ASSESSMENT", header_style))
             if diagnosis_assessment:
-                story.append(Paragraph(diagnosis_assessment, styles['Normal']))
+                # Format the diagnosis assessment for better readability
+                formatted_diagnosis = self._format_diagnosis_assessment(diagnosis_assessment, styles)
+                story.extend(formatted_diagnosis)
             else:
                 story.append(Paragraph("No diagnostic assessment available.", styles['Normal']))
             story.append(Spacer(1, 12))
@@ -287,7 +381,7 @@ class ReportGenerationTool(BaseTool):
             storage_info = ""
             if self._initial_uuid:
                 storage_path = firebase_utils.upload_report(filepath, self._initial_uuid)
-                firebase_utils.log_report(self._initial_uuid, storage_path)
+                firebase_utils.log_report(self._initial_uuid, storage_path, filename)
                 storage_info = f"\nUploaded to Firebase Storage at: {storage_path}"
 
             return (

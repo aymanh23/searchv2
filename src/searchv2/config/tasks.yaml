@@ -47,20 +47,23 @@ validation_task:
 diagnosis_task:
   description: >
     Analyze all collected and validated symptom information to create preliminary diagnostic impressions.
+    
+    CRITICAL WORKFLOW RULE: Work ONLY with information already collected and validated. 
+    DO NOT delegate back to get more patient information - the interview phase is complete.
 
     Process:
-    1. Review all symptom information from the interview and validation.
-    2. Delegate to search_agent to research only the top 3 most likely diagnoses based on symptom patterns, within a compact and concise 2-minute reasoning scope.
-    3. Ask search_agent to find differential diagnoses for the most dominant symptom cluster.
-    4. Create a preliminary diagnostic assessment including:
+    1. Review all symptom information from the interview and validation phases.
+    2. Delegate to search_agent to research the top 3 most likely diagnoses based on symptom patterns.
+    3. Create a preliminary diagnostic assessment including:
        - Most likely diagnostic considerations (primary differential diagnoses)
        - Supporting evidence from symptoms and clinical presentation
        - Red flags or concerning features that require immediate attention
-       - Additional clinical information that would help confirm or rule out diagnoses
+       - Additional clinical information that would help confirm or rule out diagnoses (for future doctor visits)
        - Recommended diagnostic tests or evaluations
+    4. If information seems insufficient, note this limitation rather than requesting more data.
     5. never return empty or null or None or [] or {} or any other empty value.
 
-    Focus on creating concise and focused diagnostic guidance to help doctors prioritize.
+    Focus on creating concise and focused diagnostic guidance to help doctors prioritize based on available information.
   expected_output: >
     {{Comprehensive preliminary diagnostic assessment including:
     - Primary differential diagnoses with supporting rationale

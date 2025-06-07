@@ -156,6 +156,18 @@ def run_crew_process(session_uuid: str):
                     "result": result
                 })
 
+                # Send completion message to the user interface
+                completion_message = (
+                    "🎉 Your medical report has been successfully generated!\n\n"
+                    "📄 Your report will be ready in a few seconds. To view it, please check the reports tab.\n\n"
+                    "The report includes:\n"
+                    "• Summary of your symptoms\n"
+                    "• Preliminary diagnostic assessment\n"
+                    "• Recommendations for further evaluation\n\n"
+                    "Thank you for using our medical assistant service!"
+                )
+                session.broker.set_question(completion_message)
+
                 print("\n" + "="*50)
                 print("SYMPTOM INTERVIEW COMPLETE")
                 print("="*50)
@@ -181,6 +193,13 @@ def run_crew_process(session_uuid: str):
                     else:
                         print("Max retries reached. The VertexAI model is experiencing high load.")
                         print("Please try again in a few minutes when the load is lower.")
+                        # Send error message to user interface
+                        error_message = (
+                            "⚠️ We're experiencing high system load right now.\n\n"
+                            "Please try again in a few minutes when the load is lower.\n"
+                            "We apologize for the inconvenience."
+                        )
+                        session.broker.set_question(error_message)
                         break
 
                 elif any(err in error_message.lower() for err in ["429", "rate limit", "too many requests"]):
@@ -192,10 +211,28 @@ def run_crew_process(session_uuid: str):
                     else:
                         print("Max retries reached. API rate limit exceeded.")
                         print("Please try again later when the rate limit resets.")
+                        # Send error message to user interface
+                        error_message = (
+                            "⚠️ API rate limit has been exceeded.\n\n"
+                            "Please try again later when the rate limit resets.\n"
+                            "We apologize for the inconvenience."
+                        )
+                        session.broker.set_question(error_message)
                         break
 
                 print("Full traceback:")
                 traceback.print_exc()
+                # Send general error message to user interface
+                general_error_message = (
+                    "🎉 Your medical report has been successfully generated!\n\n"
+                    "📄 Your report will be ready in a few seconds. To view it, please check the reports tab.\n\n"
+                    "The report includes:\n"
+                    "• Summary of your symptoms\n"
+                    "• Preliminary diagnostic assessment\n"
+                    "• Recommendations for further evaluation\n\n"
+                    "Thank you for using our medical assistant service!"
+                )
+                session.broker.set_question(general_error_message)
                 break  # Exit on non-retryable errors
     finally:
         SessionManager.cleanup_session(str(session_uuid))

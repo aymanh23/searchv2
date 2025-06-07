@@ -29,11 +29,17 @@ def upload_report(file_path: Path, patient_uuid: str) -> str:
     blob.upload_from_filename(str(file_path))
     return blob_path
 
-def log_report(patient_uuid: str, storage_path: str) -> None:
+def log_report(patient_uuid: str, storage_path: str, filename: str = None) -> None:
     """Log the uploaded report in Firestore under the patient's record."""
     db = firestore.client()
     doc_ref = db.collection("patients").document(patient_uuid).collection("reports").document()
+    
+    # Extract filename from storage_path if not provided
+    if filename is None:
+        filename = Path(storage_path).name
+    
     doc_ref.set({
+        "filename": filename,
         "path": storage_path,
         "timestamp": firestore.SERVER_TIMESTAMP,
         "reviewed": False,
