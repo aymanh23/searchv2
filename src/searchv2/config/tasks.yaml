@@ -35,10 +35,16 @@ search_task:
 validation_task:
   description: >
     Review the collected symptom information from the interview and validate completeness.
-    If anything critical is missing, provide specific feedback on what's needed and delegate back to the communicator.
-    If the patient has answers such as `i don't know` for some aspect or there is uncertainty, you accept it and note it.
-    If complete and consistent, delegate to diagnosis_agent.
-    never return empty or null or None or [] or {} or any other empty value.
+    
+    CRITICAL FIRST STEP: Use the 'Conversation Log Reader' tool to read the entire conversation history and understand what has already been collected from the patient.
+    
+    Based on the conversation history:
+    - If anything critical is missing, provide specific feedback on what's needed and delegate back to the communicator.
+    - If the patient has answers such as `i don't know` for some aspect or there is uncertainty, you accept it and note it.
+    - If complete and consistent, delegate to diagnosis_agent.
+    - never return empty or null or None or [] or {} or any other empty value.
+    
+    DO NOT ask the Interviewer to "provide patient responses" - the responses are already in the conversation log that you can read directly.
   expected_output: >
     {{Validation result: either "APPROVED - All essential information collected" or 
     "INCOMPLETE - Missing: [specific details needed for each symptom]"}}

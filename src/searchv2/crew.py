@@ -152,6 +152,11 @@ class MedicalSearch():
     def ReportGenerationTool(self):
         return ReportGenerationTool(patient_uuid=self._patient_uuid)
 
+    @tool
+    def ConversationLogReaderTool(self):
+        from .tools.conversation_log_reader_tool import ConversationLogReaderTool
+        return ConversationLogReaderTool(session_uuid=self._patient_uuid)
+
     @agent
     def communicator(self) -> Agent:
         return Agent(
@@ -205,6 +210,7 @@ class MedicalSearch():
     def symptom_validator(self) -> Agent:
         return Agent(
             config=self.agents_config['symptom_validator'],
+            tools=[self.ConversationLogReaderTool()],
             verbose=True,
             allow_delegation=True,
             allowed_agents=["Interviewer"],  # Match exact role name from agents.yaml
