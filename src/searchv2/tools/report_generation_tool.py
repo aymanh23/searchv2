@@ -6,6 +6,7 @@ collected during patient interviews. Reports are saved in the reports folder.
 """
 
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Type
@@ -48,6 +49,14 @@ class ReportGenerationTool(BaseTool):
     
     def _format_diagnosis_assessment(self, diagnosis_text: str, styles) -> list:
         """Format diagnosis assessment text for better readability"""
+        # Sanitize input
+        text = diagnosis_text.strip()
+        text = text.encode('utf-8', errors='ignore').decode('utf-8')
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+
+        # If markdown is broken (odd number of **), strip them
+        if text.count('**') % 2 != 0:
+            text = text.replace('**', '')
         formatted_elements = []
         
         # Clean up the text and split into sections
@@ -77,7 +86,6 @@ class ReportGenerationTool(BaseTool):
         if len(sections) <= 1:
             sections = []
             # Split by numbered points (1., 2., 3., etc.)
-            import re
             numbered_parts = re.split(r'(\d+\.)', text)
             current_text = ""
             
